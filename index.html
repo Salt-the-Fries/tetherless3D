@@ -368,6 +368,7 @@ function finishStroke(commit=true){
       makeStroke(currentPoints);
     }
   }else clearPreview();
+  clearEraserInk();eraserScreenPoints=[];
   currentPoints=[];
   activeStrokeTool=null;
   activeStrokeGroup=null;
