@@ -157,7 +157,7 @@ const canvas=document.querySelector('#stage'), viewport=document.querySelector('
 const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true,preserveDrawingBuffer:true});
 renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(viewport.clientWidth,viewport.clientHeight,false);
 const scene=new THREE.Scene();scene.background=null;
-const camera=new THREE.PerspectiveCamera(42,viewport.clientWidth/viewport.clientHeight,.1,100);camera.position.set(9,7,12);
+const camera=new THREE.PerspectiveCamera(42,viewport.clientWidth/viewport.clientHeight,.1,100);camera.position.set(9,7,12);camera.lookAt(0,0,0);
 const ambient=new THREE.HemisphereLight(0xffffff,0x555566,2);scene.add(ambient);
 const grid=new THREE.GridHelper(20,20,0x59604e,0x343a32);grid.position.y=-2.5;scene.add(grid);
 const root=new THREE.Group();scene.add(root);
@@ -178,7 +178,7 @@ canvas.addEventListener('pointermove',e=>{if(!drawing)return;const p=pointFromEv
 canvas.addEventListener('pointerup',()=>{if(!drawing)return;drawing=false;snapshot();makeStroke(currentPoints);currentPoints=[];});
 function setTool(t){tool=t;document.querySelectorAll('.rail .tool').forEach(b=>b.classList.remove('active'));({draw:'#drawTool',select:'#selectTool',orbit:'#orbitTool'}[t]&&document.querySelector(({draw:'#drawTool',select:'#selectTool',orbit:'#orbitTool'}[t])).classList.add('active'));if(t==='draw'){transform.detach();orbit.enabled=false;}if(t==='select'){orbit.enabled=false;const g=layers[activeLayer].group;if(g.children.length)transform.attach(g);}if(t==='orbit'){transform.detach();orbit.enabled=true;orbit.enableRotate=true;orbit.enablePan=true;orbit.enableZoom=true;}canvas.style.cursor=t==='draw'?'none':'grab';brushCursor.style.display='none';document.querySelector('#hint').textContent=t==='orbit'?('Drag to orbit · Pinch or wheel to zoom · Two fingers to pan'):'Draw with one finger · Select a layer to move the whole drawing';}
 document.querySelector('#drawTool').onclick=()=>setTool('draw');document.querySelector('#selectTool').onclick=()=>setTool(tool==='select'?'draw':'select');document.querySelector('#orbitTool').onclick=()=>setTool(tool==='orbit'?'draw':'orbit');
-function resetCamera(){orbit.target.set(0,0,0);camera.up.set(0,1,0);camera.position.set(9,7,12);camera.fov=42;camera.updateProjectionMatrix();orbit.update();}
+function resetCamera(){orbit.target.set(0,0,0);camera.up.set(0,1,0);camera.position.set(9,7,12);camera.lookAt(0,0,0);camera.fov=42;camera.updateProjectionMatrix();orbit.update();}
 function cameraZoom(factor){const offset=camera.position.clone().sub(orbit.target);offset.multiplyScalar(factor);const distance=THREE.MathUtils.clamp(offset.length(),orbit.minDistance,orbit.maxDistance);offset.setLength(distance);camera.position.copy(orbit.target).add(offset);orbit.update();}document.querySelector('#zoomIn').onclick=()=>cameraZoom(.8);document.querySelector('#zoomOut').onclick=()=>cameraZoom(1.25);document.querySelector('#cameraReset').onclick=()=>{resetCamera();};
 document.querySelector('#addLayer').onclick=()=>addLayer();document.querySelector('#newBtn').onclick=()=>addLayer();
 document.querySelector('#brushSize').oninput=e=>{brushSize=+e.target.value;document.querySelector('#sizeVal').textContent=brushSize+' px';};
