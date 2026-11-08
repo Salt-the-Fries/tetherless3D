@@ -249,21 +249,47 @@ function makeStroke(points){
   const mesh=makeSquareStroke(points,{color,opacity,size:brushSize});if(mesh){const group=layers[activeLayer].group;group.add(mesh);recordAction({type:'add',group,object:mesh});}
 }
 function pointSegmentDistanceSq(p,a,b){const ab=b.clone().sub(a),den=ab.lengthSq();if(den<1e-10)return p.distanceToSquared(a);const t=THREE.MathUtils.clamp(p.clone().sub(a).dot(ab)/den,0,1);return p.distanceToSquared(a.add(ab.multiplyScalar(t)));}
-function distanceToErasePathSq(point,path){if(path.length===1)return point.distanceToSquared(path[0]);let best=Infinity;for(let i=1;i<path.length;i++)best=Math.min(best,pointSegmentDistanceSq(point,path[i-1],path[i]));return best;}
+function projectErasePoint(point){
+  const projected=point.clone().project(camera),rect=viewport.getBoundingClientRect();
+  return {x:(projected.x*.5+.5)*rect.width,y:(-.5*projected.y+.5)*rect.height,z:projected.z};
+}
+function distanceToErasePathPx(point,path){
+  if(path.length===1){const dx=point.x-path[0].x,dy=point.y-path[0].y;return dx*dx+dy*dy;}
+  let best=Infinity;
+  for(let i=1;i<path.length;i++){
+    const a=path[i-1],b=path[i],dx=b.x-a.x,dy=b.y-a.y,den=dx*dx+dy*dy;
+    const t=den<1e-8?0:THREE.MathUtils.clamp(((point.x-a.x)*dx+(point.y-a.y)*dy)/den,0,1);
+    const x=a.x+dx*t,y=a.y+dy*t,px=point.x-x,py=point.y-y;
+    best=Math.min(best,px*px+py*py);
+  }
+  return best;
+}
 function computeEraserResult(path,group){
   const removed=[],added=[];if(!path.length)return {removed,added};
-  const eraseRadius=Math.max(.025,brushSize*.012);
-  for(const object of [...group.children]){if(!object.userData.stroke||!object.userData.centerline)continue;
+  // Erasing is screen-space, not a needle-threading exercise in 3D world units.
+  // This lets the finger sweep near a visible stroke, even when that stroke was
+  // created on a differently oriented drawing plane.
+  const eraseRadiusPx=Math.max(18,brushSize*2.5);
+  const erasePath=path.map(projectErasePoint),radiusSq=eraseRadiusPx*eraseRadiusPx;
+  for(const object of [...group.children]){
+    if(!object.userData.stroke||!object.userData.centerline)continue;
     const source=object.userData.centerline.map(p=>new THREE.Vector3(...p));if(!source.length)continue;
     const curve=source.length>=2?new THREE.CatmullRomCurve3(source):null;
-    const samples=curve?curve.getPoints(Math.max(12,source.length*5)):source;
-    const strokeRadius=Math.max(.012,(object.userData.style?.size??brushSize)*.008);
+    const samples=curve?curve.getPoints(Math.max(16,source.length*8)):source;
+    const projected=samples.map(projectErasePoint);
     const keep=[];let run=[];
-    for(const p of samples){const hit=distanceToErasePathSq(p,path)<=Math.pow(eraseRadius+strokeRadius,2);if(hit){if(run.length)keep.push(run);run=[];}else run.push(p);}
+    for(let i=0;i<samples.length;i++){
+      const hit=distanceToErasePathPx(projected[i],erasePath)<=radiusSq;
+      if(hit){if(run.length)keep.push(run);run=[];}else run.push(samples[i]);
+    }
     if(run.length)keep.push(run);
     if(keep.length===1&&keep[0].length===samples.length)continue;
     removed.push(object);
-    for(const segment of keep){if(segment.length<2&&samples.length>1)continue;const replacement=makeSquareStroke(segment,object.userData.style||{});if(replacement){replacement.renderOrder=object.renderOrder;added.push(replacement);}}
+    for(const segment of keep){
+      if(segment.length<2&&samples.length>1)continue;
+      const replacement=makeSquareStroke(segment,object.userData.style||{});
+      if(replacement){replacement.renderOrder=object.renderOrder;added.push(replacement);}
+    }
   }
   return {removed,added};
 }
