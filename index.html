@@ -138,7 +138,7 @@ button.active{animation:stamp .24s ease-out}
 <header class="top"><div><div class="brand">TETHERLESS<span>3D</span></div><div class="sub">CUT PAPER · INK · IMAGINATION</div></div><div class="top-actions"><button id="panelBtn" class="mobile-panels">☷</button><button id="saveBtn">Save</button></div></header>
 <main class="workspace"><nav class="rail">
 <button class="tool active" id="drawTool" title="Draw">✎</button><button class="tool" id="selectTool" title="Select / transform">↗</button><button class="tool" id="orbitTool" title="Orbit camera">◎</button><button class="tool" id="undoBtn" title="Undo">↶</button><button class="tool" id="redoBtn" title="Redo">↷</button>
-</nav><section class="viewport"><canvas id="stage"></canvas><div id="brushCursor"></div><div class="mode-pill" id="modeLabel">3D DRAWING SPACE</div><div class="camera-dock" aria-label="Camera controls"><button id="zoomOut" title="Zoom out">−</button><button id="zoomIn" title="Zoom in">＋</button><button id="cameraReset" title="Reset camera">⌂</button></div><div class="hint" id="hint">Draw with one finger · Select a layer to move the whole drawing</div></section>
+</nav><section class="viewport"><canvas id="stage"></canvas><div id="brushCursor"></div><div class="mode-pill" id="modeLabel">3D DRAWING SPACE</div><div class="camera-dock" aria-label="Camera controls"><button id="zoomOut" title="Zoom out">−</button><button id="zoomIn" title="Zoom in">＋</button><button id="cameraReset" title="Reset camera">⌂</button></div><div class="hint" id="hint">Draw with one finger · Select a layer to move the whole drawing</div><div id="engineError" role="status" style="display:none;position:absolute;z-index:20;left:12px;right:12px;top:64px;padding:12px;background:#fff0e8;border:2px solid #9d3022;color:#6b2018;font-weight:800;white-space:pre-wrap">3D engine error</div></section>
 <aside class="side" id="side">
 <div><div class="section-head">Layers <button id="addLayer">＋</button></div><div id="layers"></div></div>
 <div><div class="section-head">Brush <small id="sizeVal">6 px</small></div>
@@ -150,6 +150,18 @@ button.active{animation:stamp .24s ease-out}
 <footer class="bottom"><div class="tools"><button id="newBtn">＋ Layer</button><button id="clearBtn">Clear</button><button id="exportBtn">Export PNG</button></div><div class="timeline"><span class="status">FRAME</span><input id="frameSlider" type="range" min="0" max="100" value="0"><span id="frameNo" class="status">0</span></div></footer>
 </div>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script>
+(function(){
+ const panel=document.getElementById('engineError');
+ function showEngineError(message){
+  if(!panel)return;
+  panel.style.display='block';
+  panel.textContent='3D ENGINE ERROR · '+String(message||'Unknown error').slice(0,240);
+ }
+ window.addEventListener('error',e=>showEngineError(e.message||e.error));
+ window.addEventListener('unhandledrejection',e=>showEngineError(e.reason?.message||e.reason));
+})();
+</script>
 <script type="module">
 import * as THREE from 'three';
 import {TransformControls} from 'three/addons/controls/TransformControls.js';
@@ -162,7 +174,7 @@ const ambient=new THREE.HemisphereLight(0xffffff,0x555566,2);scene.add(ambient);
 const grid=new THREE.GridHelper(20,20,0x59604e,0x343a32);grid.position.y=-2.5;scene.add(grid);
 const root=new THREE.Group();scene.add(root);
 const testCube=new THREE.Group();const cubeMesh=new THREE.Mesh(new THREE.BoxGeometry(2,2,2),new THREE.MeshStandardMaterial({color:0xff765e,roughness:.48,metalness:.05}));const cubeEdges=new THREE.LineSegments(new THREE.EdgesGeometry(cubeMesh.geometry),new THREE.LineBasicMaterial({color:0x282321,linewidth:2}));testCube.add(cubeMesh,cubeEdges);testCube.visible=true;scene.add(testCube);
-const transform=new TransformControls(camera,renderer.domElement);scene.add(transform.getHelper());transform.setMode('translate');transform.addEventListener('dragging-changed',e=>{orbit.enabled=!e.value;});
+const transform=new TransformControls(camera,renderer.domElement);scene.add(transform);transform.setMode('translate');transform.addEventListener('dragging-changed',e=>{orbit.enabled=!e.value;});
 const orbit=new (await import('three/addons/controls/OrbitControls.js')).OrbitControls(camera,renderer.domElement);orbit.enableDamping=true;orbit.dampingFactor=.08;orbit.enableZoom=true;orbit.enablePan=true;orbit.enableRotate=true;orbit.minDistance=2.5;orbit.maxDistance=40;orbit.zoomSpeed=.9;orbit.panSpeed=.85;orbit.rotateSpeed=.75;orbit.target.set(0,0,0);orbit.enabled=false;
 let activeLayer=0,tool='draw',color='#d9f78a',brushSize=6,opacity=1,drawing=false,currentPoints=[],currentLine=null,undoStack=[],redoStack=[],keyframes=[],playing=false,playStart=0;
 const layers=[];
