@@ -181,8 +181,10 @@ const layers=[];
 function addLayer(name='Layer '+(layers.length+1)){const group=new THREE.Group();group.name=name;root.add(group);layers.push({name,group,visible:true});activeLayer=layers.length-1;renderLayers();}
 addLayer('Starfish');addLayer('Details');activeLayer=0;
 function renderLayers(){const el=document.querySelector('#layers');el.innerHTML='';layers.forEach((l,i)=>{const row=document.createElement('div');row.className='layer'+(i===activeLayer?' active':'');row.innerHTML='<span class="dot"></span><span></span><button title="Visibility">◉</button>';row.children[1].textContent=l.name;row.addEventListener('click',e=>{if(e.target.tagName==='BUTTON'){l.visible=!l.visible;l.group.visible=l.visible;e.target.textContent=l.visible?'◉':'○';return;}activeLayer=i;renderLayers();if(tool==='select'&&l.group.children.length)transform.attach(l.group);});el.append(row);});}
-function snapshot(){undoStack.push(root.toJSON());if(undoStack.length>40)undoStack.shift();redoStack=[];}
-function restore(json){const parsed=new THREE.ObjectLoader().parse(json);root.clear();layers.length=0;while(parsed.children.length){const group=parsed.children[0];root.add(group);layers.push({name:group.name||('Layer '+(layers.length+1)),group,visible:group.visible});}activeLayer=THREE.MathUtils.clamp(activeLayer,0,Math.max(0,layers.length-1));transform.detach();renderLayers();}
+// History stores object references, never full serialized copies of the entire scene.
+function recordAction(action){undoStack.push(action);if(undoStack.length>500)undoStack.shift();redoStack=[];}
+function undoAction(){const action=undoStack.pop();if(!action)return;if(action.type==='add'){action.group.remove(action.object);}else if(action.type==='clear'){for(const object of action.objects)action.group.add(object);}redoStack.push(action);}
+function redoAction(){const action=redoStack.pop();if(!action)return;if(action.type==='add'){action.group.add(action.object);}else if(action.type==='clear'){for(const object of action.objects)action.group.remove(object);}undoStack.push(action);}
 // First reliable brush pass: draw on the studio's horizontal XZ work plane.
 const drawingPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
 const pointerRaycaster=new THREE.Raycaster();
@@ -227,7 +229,7 @@ function makeSquareStroke(points){
   const mesh=new THREE.Mesh(geometry,material);mesh.userData.stroke=true;return mesh;
 }
 function makeStroke(points){
-  const mesh=makeSquareStroke(points);if(mesh)layers[activeLayer].group.add(mesh);
+  const mesh=makeSquareStroke(points);if(mesh){const group=layers[activeLayer].group;group.add(mesh);recordAction({type:'add',group,object:mesh});}
 }
 let previewFrame=0;
 function updateStrokePreview(){
@@ -243,7 +245,7 @@ function clearPreview(){if(previewFrame){cancelAnimationFrame(previewFrame);prev
 function finishStroke(commit=true){
   if(!drawing)return;
   drawing=false;clearPreview();
-  if(commit&&currentPoints.length){snapshot();makeStroke(currentPoints);}
+  if(commit&&currentPoints.length)makeStroke(currentPoints);
   currentPoints=[];
 }
 // One finger draws. Two fingers take over for camera orbit and pinch zoom.
@@ -351,9 +353,9 @@ viewport.addEventListener('pointermove',e=>{if(e.pointerType==='touch'||tool!=='
 viewport.addEventListener('pointerleave',()=>brushCursor.style.display='none');
 function comicPop(x,y,label='NICE!'){const el=document.createElement('div');el.className='comic-pop';el.textContent=label;el.style.left=x+'px';el.style.top=y+'px';document.body.append(el);setTimeout(()=>el.remove(),650);}
 document.querySelectorAll('.top-actions button,.bottom button,.rail button').forEach(btn=>btn.addEventListener('click',()=>{const r=btn.getBoundingClientRect();const labels={'saveBtn':'SAVED!','exportBtn':'INK IT!','addLayer':'NEW PAGE!','newBtn':'NEW PAGE!','clearBtn':'FRESH SHEET!','keyBtn':'SNAP!','playBtn':'ACTION!'};const label=labels[btn.id];if(label)comicPop(r.left+r.width/2,r.top+r.height/2,label);}));
-document.querySelector('#clearBtn').onclick=()=>{snapshot();layers[activeLayer].group.clear();transform.detach();};
-document.querySelector('#undoBtn').onclick=()=>{if(!undoStack.length)return;redoStack.push(root.toJSON());restore(undoStack.pop());};
-document.querySelector('#redoBtn').onclick=()=>{if(!redoStack.length)return;undoStack.push(root.toJSON());restore(redoStack.pop());};
+document.querySelector('#clearBtn').onclick=()=>{const group=layers[activeLayer].group;if(!group.children.length)return;recordAction({type:'clear',group,objects:[...group.children]});group.clear();transform.detach();};
+document.querySelector('#undoBtn').onclick=undoAction;
+document.querySelector('#redoBtn').onclick=redoAction;
 document.querySelector('#saveBtn').onclick=()=>{const data={version:1,layers:root.toJSON(),keyframes};const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data)],{type:'application/json'}));a.download='tetherless3d-project.json';a.click();URL.revokeObjectURL(a.href);};
 document.querySelector('#exportBtn').onclick=()=>{renderer.render(scene,camera);const a=document.createElement('a');a.href=renderer.domElement.toDataURL('image/png');a.download='tetherless3d-artwork.png';a.click();};
 document.querySelector('#panelBtn').onclick=()=>document.querySelector('#side').classList.toggle('open');
