@@ -171,11 +171,68 @@ addLayer('Starfish');addLayer('Details');activeLayer=0;
 function renderLayers(){const el=document.querySelector('#layers');el.innerHTML='';layers.forEach((l,i)=>{const row=document.createElement('div');row.className='layer'+(i===activeLayer?' active':'');row.innerHTML='<span class="dot"></span><span></span><button title="Visibility">◉</button>';row.children[1].textContent=l.name;row.addEventListener('click',e=>{if(e.target.tagName==='BUTTON'){l.visible=!l.visible;l.group.visible=l.visible;e.target.textContent=l.visible?'◉':'○';return;}activeLayer=i;renderLayers();if(tool==='select'&&l.group.children.length)transform.attach(l.group);});el.append(row);});}
 function snapshot(){undoStack.push(root.toJSON());if(undoStack.length>40)undoStack.shift();redoStack=[];}
 function restore(json){const parsed=new THREE.ObjectLoader().parse(json);root.clear();while(parsed.children.length)root.add(parsed.children[0]);}
-function pointFromEvent(e){const rect=canvas.getBoundingClientRect(),x=((e.clientX-rect.left)/rect.width)*2-1,y=-((e.clientY-rect.top)/rect.height)*2+1;const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2(x,y),camera);const plane=new THREE.Plane(new THREE.Vector3(0,0,1),0);const p=new THREE.Vector3();ray.ray.intersectPlane(plane,p);return p;}
-function makeStroke(points){if(points.length<2)return;const curve=new THREE.CatmullRomCurve3(points);const radius=brushSize*.006;const geometry=new THREE.TubeGeometry(curve,Math.max(12,points.length*3),radius,7,false);const material=new THREE.MeshBasicMaterial({color,transparent:opacity<1,opacity});const mesh=new THREE.Mesh(geometry,material);mesh.userData.stroke=true;layers[activeLayer].group.add(mesh);}
-canvas.addEventListener('pointerdown',e=>{if(tool!=='draw'||transform.dragging)return;drawing=true;canvas.setPointerCapture(e.pointerId);currentPoints=[pointFromEvent(e)];});
-canvas.addEventListener('pointermove',e=>{if(!drawing)return;const p=pointFromEvent(e);if(currentPoints[currentPoints.length-1].distanceTo(p)>.025)currentPoints.push(p);});
-canvas.addEventListener('pointerup',()=>{if(!drawing)return;drawing=false;snapshot();makeStroke(currentPoints);currentPoints=[];});
+// First reliable brush pass: draw on the studio's horizontal XZ work plane.
+const drawingPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
+const pointerRaycaster=new THREE.Raycaster();
+function pointFromEvent(e){
+  const rect=canvas.getBoundingClientRect();
+  if(!rect.width||!rect.height)return null;
+  const x=((e.clientX-rect.left)/rect.width)*2-1;
+  const y=-((e.clientY-rect.top)/rect.height)*2+1;
+  pointerRaycaster.setFromCamera(new THREE.Vector2(x,y),camera);
+  const point=new THREE.Vector3();
+  return pointerRaycaster.ray.intersectPlane(drawingPlane,point)?point:null;
+}
+function strokeMaterial(){return new THREE.MeshStandardMaterial({color,transparent:opacity<1,opacity,roughness:.82,metalness:0});}
+function makeStroke(points){
+  if(!points.length)return;
+  const group=layers[activeLayer].group;
+  const radius=Math.max(.012,brushSize*.008);
+  if(points.length===1){
+    const dab=new THREE.Mesh(new THREE.SphereGeometry(radius,12,8),strokeMaterial());
+    dab.position.copy(points[0]);dab.userData.stroke=true;group.add(dab);return;
+  }
+  const curve=new THREE.CatmullRomCurve3(points);
+  const geometry=new THREE.TubeGeometry(curve,Math.max(16,points.length*4),radius,8,false);
+  const mesh=new THREE.Mesh(geometry,strokeMaterial());
+  mesh.userData.stroke=true;group.add(mesh);
+}
+function updateStrokePreview(){
+  if(currentLine){layers[activeLayer].group.remove(currentLine);currentLine.geometry.dispose();currentLine.material.dispose();currentLine=null;}
+  if(currentPoints.length<2)return;
+  const geometry=new THREE.BufferGeometry().setFromPoints(currentPoints);
+  const material=new THREE.LineBasicMaterial({color,transparent:opacity<1,opacity,depthTest:true});
+  currentLine=new THREE.Line(geometry,material);currentLine.frustumCulled=false;
+  layers[activeLayer].group.add(currentLine);
+}
+function finishStroke(){
+  if(!drawing)return;
+  drawing=false;
+  if(currentLine){layers[activeLayer].group.remove(currentLine);currentLine.geometry.dispose();currentLine.material.dispose();currentLine=null;}
+  if(currentPoints.length){snapshot();makeStroke(currentPoints);}
+  currentPoints=[];
+}
+canvas.addEventListener('pointerdown',e=>{
+  if(tool!=='draw'||transform.dragging)return;
+  const point=pointFromEvent(e);
+  if(!point)return;
+  drawing=true;
+  try{canvas.setPointerCapture(e.pointerId);}catch{}
+  currentPoints=[point];
+  updateStrokePreview();
+});
+canvas.addEventListener('pointermove',e=>{
+  if(!drawing)return;
+  const point=pointFromEvent(e);
+  if(!point)return;
+  if(currentPoints[currentPoints.length-1].distanceTo(point)>.018){
+    currentPoints.push(point);
+    updateStrokePreview();
+  }
+});
+canvas.addEventListener('pointerup',finishStroke);
+canvas.addEventListener('pointercancel',finishStroke);
+canvas.addEventListener('lostpointercapture',finishStroke);
 function setTool(t){tool=t;document.querySelectorAll('.rail .tool').forEach(b=>b.classList.remove('active'));({draw:'#drawTool',select:'#selectTool',orbit:'#orbitTool'}[t]&&document.querySelector(({draw:'#drawTool',select:'#selectTool',orbit:'#orbitTool'}[t])).classList.add('active'));if(t==='draw'){transform.detach();orbit.enabled=false;}if(t==='select'){orbit.enabled=false;const g=layers[activeLayer].group;if(g.children.length)transform.attach(g);}if(t==='orbit'){transform.detach();orbit.enabled=true;orbit.enableRotate=true;orbit.enablePan=true;orbit.enableZoom=true;}canvas.style.cursor=t==='draw'?'none':'grab';brushCursor.style.display='none';document.querySelector('#hint').textContent=t==='orbit'?('Drag to orbit · Pinch or wheel to zoom · Two fingers to pan'):'Draw with one finger · Select a layer to move the whole drawing';}
 document.querySelector('#drawTool').onclick=()=>setTool('draw');document.querySelector('#selectTool').onclick=()=>setTool(tool==='select'?'draw':'select');document.querySelector('#orbitTool').onclick=()=>setTool(tool==='orbit'?'draw':'orbit');
 function resetCamera(){orbit.target.set(0,0,0);camera.up.set(0,1,0);camera.position.set(9,7,12);camera.lookAt(0,0,0);camera.fov=42;camera.updateProjectionMatrix();orbit.update();}
