@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#171817"><link rel="manifest" href="./manifest.json">
+<title>Tetherless3D Studio</title>
+<style>
+:root{color-scheme:dark;--bg:#171817;--panel:#20221f;--panel2:#292c28;--line:#393d37;--ink:#f1eee4;--muted:#a4a99d;--lime:#c8f36a;--orange:#ff9e68}
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font:14px/1.35 Inter,ui-sans-serif,system-ui,sans-serif}button,input{font:inherit}button{border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:11px;padding:9px 12px;cursor:pointer;transition:transform .14s,background .14s,border-color .14s}button:active{transform:translateY(2px) scale(.98)}button.active{border-color:var(--lime);color:var(--lime);background:#303a25}.app{height:100dvh;display:grid;grid-template-rows:58px 1fr 58px}.top{display:flex;align-items:center;justify-content:space-between;padding:0 14px;border-bottom:1px solid var(--line);background:#1c1e1b;gap:10px}.brand{font-weight:800;letter-spacing:-.6px}.brand span{color:var(--lime)}.sub{font-size:11px;color:var(--muted)}.top-actions,.tools{display:flex;gap:7px;align-items:center}.workspace{min-height:0;display:grid;grid-template-columns:58px 1fr 250px}.rail{background:#1c1e1b;border-right:1px solid var(--line);display:flex;flex-direction:column;align-items:center;gap:9px;padding:10px 6px}.tool{width:43px;height:43px;padding:0;font-size:18px}.viewport{position:relative;min-width:0;min-height:0;background:radial-gradient(ellipse at 50% 45%,#282c27 0,#1b1e1b 60%,#171817 100%);overflow:hidden;touch-action:none}#stage{width:100%;height:100%;display:block;touch-action:none}.hint{position:absolute;left:16px;bottom:14px;padding:8px 11px;background:#171817cc;border:1px solid var(--line);border-radius:10px;color:var(--muted);font-size:11px;pointer-events:none}.mode-pill{position:absolute;top:14px;left:14px;background:#171817cc;border:1px solid var(--line);padding:7px 10px;border-radius:9px;font-size:11px;color:var(--lime)}.side{border-left:1px solid var(--line);background:#1c1e1b;overflow:auto;padding:14px;display:flex;flex-direction:column;gap:16px}.section-head{display:flex;justify-content:space-between;align-items:center;font-weight:750}.section-head small{color:var(--muted);font-weight:500}.layer{display:flex;align-items:center;gap:8px;padding:9px;border:1px solid transparent;border-radius:10px;color:var(--muted);cursor:pointer}.layer.active{background:#30352d;border-color:#59634c;color:var(--ink)}.layer .dot{width:8px;height:8px;border-radius:50%;background:var(--lime)}.layer button{margin-left:auto;padding:3px 6px}.control{display:grid;gap:7px;color:var(--muted);font-size:12px}.control input{width:100%;accent-color:var(--lime)}.swatches{display:flex;gap:8px;flex-wrap:wrap}.swatch{width:24px;height:24px;border-radius:50%;padding:0;border:2px solid #ffffff33}.bottom{border-top:1px solid var(--line);background:#1c1e1b;display:flex;align-items:center;justify-content:space-between;padding:8px 14px;gap:8px}.timeline{display:flex;align-items:center;gap:8px;min-width:0}.timeline input{width:min(34vw,220px);accent-color:var(--lime)}.status{font-size:11px;color:var(--muted)}.mobile-panels{display:none}
+@media(max-width:760px){.app{grid-template-rows:54px 1fr 62px}.workspace{grid-template-columns:48px 1fr}.rail{padding:8px 3px}.tool{width:39px;height:39px}.side{display:none}.side.open{display:flex;position:absolute;z-index:5;right:0;top:54px;bottom:62px;width:min(290px,82vw);box-shadow:-15px 0 40px #0008}.mobile-panels{display:inline-flex}.brand{font-size:13px}.top{padding:0 9px}.top-actions button{padding:8px}.bottom{padding:7px 9px}.bottom button{padding:8px}.status{display:none}}
+@media(orientation:portrait) and (max-width:760px){.hint{max-width:70%;font-size:10px}.timeline input{width:24vw}}
+</style>
+</head>
+<body>
+<div class="app">
+<header class="top"><div><div class="brand">tetherless<span>3D</span></div><div class="sub">DRAW BEYOND THE PAGE</div></div><div class="top-actions"><button id="mode2d" class="active">2D</button><button id="mode3d">3D</button><button id="panelBtn" class="mobile-panels">☷</button><button id="saveBtn">Save</button></div></header>
+<main class="workspace"><nav class="rail">
+<button class="tool active" id="drawTool" title="Draw">✎</button><button class="tool" id="selectTool" title="Select / transform">↗</button><button class="tool" id="orbitTool" title="Orbit camera">◎</button><button class="tool" id="undoBtn" title="Undo">↶</button><button class="tool" id="redoBtn" title="Redo">↷</button>
+</nav><section class="viewport"><canvas id="stage"></canvas><div class="mode-pill" id="modeLabel">2D SKETCH · FRONT PLANE</div><div class="hint" id="hint">Draw with one finger · Select a layer to move the whole drawing</div></section>
+<aside class="side" id="side">
+<div><div class="section-head">Layers <button id="addLayer">＋</button></div><div id="layers"></div></div>
+<div><div class="section-head">Brush <small id="sizeVal">6 px</small></div>
+<label class="control">Size<input id="brushSize" type="range" min="1" max="36" value="6"></label>
+<label class="control">Opacity<input id="opacity" type="range" min="10" max="100" value="100"></label>
+<div class="swatches" id="swatches"><button class="swatch" data-color="#d9f78a" style="background:#d9f78a"></button><button class="swatch" data-color="#ff9473" style="background:#ff9473"></button><button class="swatch" data-color="#8bd9ff" style="background:#8bd9ff"></button><button class="swatch" data-color="#f1eee4" style="background:#f1eee4"></button><button class="swatch" data-color="#c49aff" style="background:#c49aff"></button></div></div>
+<div><div class="section-head">Animation <small>keyframes</small></div><button id="keyBtn" style="width:100%">＋ Add keyframe</button><button id="playBtn" style="width:100%;margin-top:7px">▶ Play preview</button><div class="sub" id="frameInfo" style="margin-top:7px">0 keyframes · 12 FPS</div></div>
+</aside></main>
+<footer class="bottom"><div class="tools"><button id="newBtn">＋ Layer</button><button id="clearBtn">Clear</button><button id="exportBtn">Export PNG</button></div><div class="timeline"><span class="status">FRAME</span><input id="frameSlider" type="range" min="0" max="100" value="0"><span id="frameNo" class="status">0</span></div></footer>
+</div>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {TransformControls} from 'three/addons/controls/TransformControls.js';
+const canvas=document.querySelector('#stage'), viewport=document.querySelector('.viewport');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true,preserveDrawingBuffer:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));renderer.setSize(viewport.clientWidth,viewport.clientHeight,false);
+const scene=new THREE.Scene();scene.background=null;
+const camera=new THREE.PerspectiveCamera(42,viewport.clientWidth/viewport.clientHeight,.1,100);camera.position.set(0,0,12);
+const ambient=new THREE.HemisphereLight(0xffffff,0x555566,2);scene.add(ambient);
+const grid=new THREE.GridHelper(20,20,0x59604e,0x343a32);grid.rotation.x=Math.PI/2;grid.position.z=-2.5;scene.add(grid);
+const root=new THREE.Group();scene.add(root);
+const transform=new TransformControls(camera,renderer.domElement);scene.add(transform.getHelper());transform.setMode('translate');transform.addEventListener('dragging-changed',e=>{orbit.enabled=!e.value;});
+const orbit=new (await import('three/addons/controls/OrbitControls.js')).OrbitControls(camera,renderer.domElement);orbit.enableDamping=true;orbit.enabled=false;
+let activeLayer=0,tool='draw',is3D=false,color='#d9f78a',brushSize=6,opacity=1,drawing=false,currentPoints=[],currentLine=null,undoStack=[],redoStack=[],keyframes=[],playing=false,playStart=0;
+const layers=[];
+function addLayer(name='Layer '+(layers.length+1)){const group=new THREE.Group();group.name=name;root.add(group);layers.push({name,group,visible:true});activeLayer=layers.length-1;renderLayers();}
+addLayer('Starfish');addLayer('Details');activeLayer=0;
+function renderLayers(){const el=document.querySelector('#layers');el.innerHTML='';layers.forEach((l,i)=>{const row=document.createElement('div');row.className='layer'+(i===activeLayer?' active':'');row.innerHTML='<span class="dot"></span><span></span><button title="Visibility">◉</button>';row.children[1].textContent=l.name;row.addEventListener('click',e=>{if(e.target.tagName==='BUTTON'){l.visible=!l.visible;l.group.visible=l.visible;e.target.textContent=l.visible?'◉':'○';return;}activeLayer=i;renderLayers();if(tool==='select'&&l.group.children.length)transform.attach(l.group);});el.append(row);});}
+function snapshot(){undoStack.push(root.toJSON());if(undoStack.length>40)undoStack.shift();redoStack=[];}
+function restore(json){const parsed=new THREE.ObjectLoader().parse(json);root.clear();while(parsed.children.length)root.add(parsed.children[0]);}
+function pointFromEvent(e){const rect=canvas.getBoundingClientRect(),x=((e.clientX-rect.left)/rect.width)*2-1,y=-((e.clientY-rect.top)/rect.height)*2+1;const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2(x,y),camera);const plane=new THREE.Plane(new THREE.Vector3(0,0,1),0);const p=new THREE.Vector3();ray.ray.intersectPlane(plane,p);return p;}
+function makeStroke(points){if(points.length<2)return;const curve=new THREE.CatmullRomCurve3(points);const radius=brushSize*.006;const geometry=new THREE.TubeGeometry(curve,Math.max(12,points.length*3),radius,7,false);const material=new THREE.MeshBasicMaterial({color,transparent:opacity<1,opacity});const mesh=new THREE.Mesh(geometry,material);mesh.userData.stroke=true;layers[activeLayer].group.add(mesh);}
+canvas.addEventListener('pointerdown',e=>{if(tool!=='draw'||transform.dragging)return;drawing=true;canvas.setPointerCapture(e.pointerId);currentPoints=[pointFromEvent(e)];});
+canvas.addEventListener('pointermove',e=>{if(!drawing)return;const p=pointFromEvent(e);if(currentPoints[currentPoints.length-1].distanceTo(p)>.025)currentPoints.push(p);});
+canvas.addEventListener('pointerup',()=>{if(!drawing)return;drawing=false;snapshot();makeStroke(currentPoints);currentPoints=[];});
+function setTool(t){tool=t;document.querySelectorAll('.rail .tool').forEach(b=>b.classList.remove('active'));({draw:'#drawTool',select:'#selectTool',orbit:'#orbitTool'}[t]&&document.querySelector(({draw:'#drawTool',select:'#selectTool',orbit:'#orbitTool'}[t])).classList.add('active'));if(t==='draw'){transform.detach();orbit.enabled=false;}if(t==='select'){orbit.enabled=false;const g=layers[activeLayer].group;if(g.children.length)transform.attach(g);}if(t==='orbit'){transform.detach();orbit.enabled=true;}canvas.style.cursor=t==='draw'?'crosshair':'grab';}
+document.querySelector('#drawTool').onclick=()=>setTool('draw');document.querySelector('#selectTool').onclick=()=>setTool('select');document.querySelector('#orbitTool').onclick=()=>setTool('orbit');
+document.querySelector('#mode2d').onclick=()=>{is3D=false;camera.position.set(0,0,12);camera.lookAt(0,0,0);camera.up.set(0,1,0);camera.fov=42;camera.updateProjectionMatrix();document.querySelector('#mode2d').classList.add('active');document.querySelector('#mode3d').classList.remove('active');document.querySelector('#modeLabel').textContent='2D SKETCH · FRONT PLANE';grid.visible=true;};
+document.querySelector('#mode3d').onclick=()=>{is3D=true;camera.position.set(9,7,12);camera.lookAt(0,0,0);camera.updateProjectionMatrix();document.querySelector('#mode3d').classList.add('active');document.querySelector('#mode2d').classList.remove('active');document.querySelector('#modeLabel').textContent='3D SPACE · ORBIT VIEW';grid.visible=true;setTool('orbit');};
+document.querySelector('#addLayer').onclick=()=>addLayer();document.querySelector('#newBtn').onclick=()=>addLayer();
+document.querySelector('#brushSize').oninput=e=>{brushSize=+e.target.value;document.querySelector('#sizeVal').textContent=brushSize+' px';};
+document.querySelector('#opacity').oninput=e=>opacity=+e.target.value/100;
+document.querySelectorAll('.swatch').forEach(b=>b.onclick=()=>color=b.dataset.color);
+document.querySelector('#clearBtn').onclick=()=>{snapshot();layers[activeLayer].group.clear();transform.detach();};
+document.querySelector('#undoBtn').onclick=()=>{if(!undoStack.length)return;redoStack.push(root.toJSON());restore(undoStack.pop());};
+document.querySelector('#redoBtn').onclick=()=>{if(!redoStack.length)return;undoStack.push(root.toJSON());restore(redoStack.pop());};
+document.querySelector('#saveBtn').onclick=()=>{const data={version:1,layers:root.toJSON(),keyframes};const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data)],{type:'application/json'}));a.download='tetherless3d-project.json';a.click();URL.revokeObjectURL(a.href);};
+document.querySelector('#exportBtn').onclick=()=>{renderer.render(scene,camera);const a=document.createElement('a');a.href=renderer.domElement.toDataURL('image/png');a.download='tetherless3d-artwork.png';a.click();};
+document.querySelector('#panelBtn').onclick=()=>document.querySelector('#side').classList.toggle('open');
+document.querySelector('#keyBtn').onclick=()=>{keyframes.push({time:keyframes.length*1,position:root.position.toArray(),rotation:root.rotation.toArray(),scale:root.scale.toArray()});document.querySelector('#frameInfo').textContent=keyframes.length+' keyframes · 12 FPS';document.querySelector('#frameSlider').max=Math.max(100,keyframes.length*100);};
+document.querySelector('#playBtn').onclick=()=>{playing=!playing;playStart=performance.now();document.querySelector('#playBtn').textContent=playing?'Ⅱ Pause preview':'▶ Play preview';};
+document.querySelector('#frameSlider').oninput=e=>document.querySelector('#frameNo').textContent=e.target.value;
+function resize(){const w=viewport.clientWidth,h=viewport.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
+new ResizeObserver(resize).observe(viewport);
+function animate(now){requestAnimationFrame(animate);orbit.update();if(playing&&keyframes.length>1){const t=((now-playStart)/1000)%(keyframes.length-1);const i=Math.floor(t),f=t-i,a=keyframes[i],b=keyframes[Math.min(i+1,keyframes.length-1)];root.position.fromArray(a.position).lerp(new THREE.Vector3(...b.position),f);root.rotation.set(...a.rotation);root.scale.fromArray(a.scale).lerp(new THREE.Vector3(...b.scale),f);}renderer.render(scene,camera);}
+requestAnimationFrame(animate);renderLayers();
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+</script>
+</body></html>
