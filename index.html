@@ -137,7 +137,7 @@ button.active{animation:stamp .24s ease-out}
 <div class="app">
 <header class="top"><div><div class="brand">TETHERLESS<span>3D</span></div><div class="sub">CUT PAPER · INK · IMAGINATION</div></div><div class="top-actions"><button id="panelBtn" class="mobile-panels">☷</button><button id="saveBtn">Save</button></div></header>
 <main class="workspace"><nav class="rail">
-<button class="tool active" id="drawTool" title="Draw">✎</button><button class="tool" id="selectTool" title="Select / transform">↗</button><button class="tool" id="orbitTool" title="Orbit camera">◎</button><button class="tool" id="undoBtn" title="Undo">↶</button><button class="tool" id="redoBtn" title="Redo">↷</button>
+<button class="tool active" id="drawTool" title="Draw">✎</button><button class="tool" id="selectTool" title="Select / transform">↗</button><button class="tool" id="undoBtn" title="Undo">↶</button><button class="tool" id="redoBtn" title="Redo">↷</button>
 </nav><section class="viewport"><canvas id="stage"></canvas><div id="brushCursor"></div><div class="mode-pill" id="modeLabel">3D DRAWING SPACE</div><div class="camera-dock" aria-label="Camera controls"><button id="zoomOut" title="Zoom out">−</button><button id="zoomIn" title="Zoom in">＋</button><button id="cameraReset" title="Reset camera">⌂</button></div><div class="hint" id="hint">One finger draws · Two fingers orbit + pinch to zoom · Right-drag orbits on desktop</div><div id="engineError" role="status" style="display:none;position:absolute;z-index:20;left:12px;right:12px;top:64px;padding:12px;background:#fff0e8;border:2px solid #9d3022;color:#6b2018;font-weight:800;white-space:pre-wrap">3D engine error</div></section>
 <aside class="side" id="side">
 <div><div class="section-head">Layers <button id="addLayer">＋</button></div><div id="layers"></div></div>
@@ -311,7 +311,7 @@ canvas.addEventListener('pointermove',e=>{
 function endPointer(e){
   if(activePointers.has(e.pointerId)){
     activePointers.delete(e.pointerId);gestureState=null;
-    if(activePointers.size===0&&!drawing)currentPoints=[];
+    if(activePointers.size===0){if(drawing)finishStroke(true);else currentPoints=[];}
     return;
   }
   if(mouseCamera&&mouseCamera.id===e.pointerId){mouseCamera=null;return;}
