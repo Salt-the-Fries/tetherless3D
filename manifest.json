@@ -1,0 +1,17 @@
+{
+  "name": "Tetherless3D Studio",
+  "short_name": "Tetherless3D",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#171817",
+  "theme_color": "#171817",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
