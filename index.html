@@ -143,7 +143,7 @@ button.active{animation:stamp .24s ease-out}
 <div><div class="section-head">Layers <button id="addLayer">＋</button></div><div id="layers"></div></div>
 <div><div class="section-head">Brush <small id="sizeVal">6 px</small></div>
 <label class="control">Brush size <input id="brushSize" type="range" min="1" max="36" value="6"></label>
-<label class="control">Eraser radius <small id="eraserSizeVal">24 px</small><input id="eraserSize" type="range" min="8" max="80" value="24"></label>
+<label class="control">Eraser radius <small id="eraserSizeVal">6 px</small><input id="eraserSize" type="range" min="1" max="36" value="6"></label>
 <label class="control">Opacity<input id="opacity" type="range" min="10" max="100" value="100"></label>
 <div class="swatches" id="swatches"><button class="swatch" data-color="#d9f78a" style="background:#d9f78a"></button><button class="swatch" data-color="#ff9473" style="background:#ff9473"></button><button class="swatch" data-color="#8bd9ff" style="background:#8bd9ff"></button><button class="swatch" data-color="#f1eee4" style="background:#f1eee4"></button><button class="swatch" data-color="#c49aff" style="background:#c49aff"></button></div></div>
 <div><div class="section-head">Animation <small>keyframes</small></div><button id="keyBtn" style="width:100%">＋ Add keyframe</button><button id="playBtn" style="width:100%;margin-top:7px">▶ Play preview</button><div class="sub" id="frameInfo" style="margin-top:7px">0 keyframes · 12 FPS</div></div>
@@ -177,7 +177,7 @@ const root=new THREE.Group();scene.add(root);
 const testCube=new THREE.Group();const cubeMesh=new THREE.Mesh(new THREE.BoxGeometry(2,2,2),new THREE.MeshStandardMaterial({color:0xff765e,roughness:.48,metalness:.05}));const cubeEdges=new THREE.LineSegments(new THREE.EdgesGeometry(cubeMesh.geometry),new THREE.LineBasicMaterial({color:0x282321,linewidth:2}));testCube.add(cubeMesh,cubeEdges);testCube.visible=true;scene.add(testCube);
 const transform=new TransformControls(camera,renderer.domElement);scene.add(transform);transform.setMode('translate');let gizmoDragging=false;transform.addEventListener('dragging-changed',e=>{gizmoDragging=e.value;orbit.enabled=false;if(gizmoDragging){if(drawing)finishStroke(false);activePointers.clear();gestureState=null;mouseCamera=null;}});
 const orbit=new (await import('three/addons/controls/OrbitControls.js')).OrbitControls(camera,renderer.domElement);orbit.enableDamping=true;orbit.dampingFactor=.08;orbit.enableZoom=true;orbit.enablePan=true;orbit.enableRotate=true;orbit.minDistance=2.5;orbit.maxDistance=40;orbit.zoomSpeed=.9;orbit.panSpeed=.85;orbit.rotateSpeed=.75;orbit.target.set(0,0,0);orbit.enabled=false;
-let activeLayer=0,tool='draw',color='#d9f78a',brushSize=6,eraserRadiusPx=24,opacity=1,drawing=false,currentPoints=[],currentLine=null,undoStack=[],redoStack=[],keyframes=[],playing=false,playStart=0;
+let activeLayer=0,tool='draw',color='#d9f78a',brushSize=6,eraserRadiusPx=6,opacity=1,drawing=false,currentPoints=[],currentLine=null,undoStack=[],redoStack=[],keyframes=[],playing=false,playStart=0;
 const layers=[];
 function addLayer(name='Layer '+(layers.length+1)){const group=new THREE.Group();group.name=name;root.add(group);layers.push({name,group,visible:true});activeLayer=layers.length-1;renderLayers();}
 addLayer('Starfish');addLayer('Details');activeLayer=0;
@@ -316,13 +316,10 @@ let eraserPreview=null;
 let activeStrokeTool=null,activeStrokeGroup=null;
 function clearEraserPreview(){if(!eraserPreview)return;for(const object of eraserPreview.added||[]){eraserPreview.group.remove(object);object.geometry?.dispose();object.material?.dispose();}for(const object of eraserPreview.removed)object.visible=true;eraserPreview=null;}
 function updateEraserPreview(){
-  clearEraserPreview();if(!currentPoints.length)return;
-  const group=activeStrokeGroup||layers[activeLayer].group;
-  const hits=findEraserHits(currentPoints,group);if(!hits.length)return;
-  // Lightweight live feedback: hide hit strokes during the gesture. Geometry
-  // splitting is deferred until pointer-up so we never rebuild meshes per frame.
-  for(const object of hits)object.visible=false;
-  eraserPreview={group,removed:hits,added:[]};
+  // Keep every original stroke visible while the gesture is in progress.
+  // The cursor communicates the eraser footprint; only the intersected
+  // geometry is removed on pointer-up, never the entire source stroke.
+  clearEraserPreview();
 }
 function commitEraserPreview(){
   if(!eraserPreview)return;
@@ -457,7 +454,7 @@ canvas.addEventListener('pointercancel',cancelPointer);
 canvas.addEventListener('lostpointercapture',cancelPointer);
 window.addEventListener('blur',()=>{activePointers.clear();gestureState=null;mouseCamera=null;if(drawing)finishStroke(false);});
 document.addEventListener('visibilitychange',()=>{if(document.hidden){activePointers.clear();gestureState=null;mouseCamera=null;if(drawing)finishStroke(false);}});
-function setTool(t){if(drawing)finishStroke(true);clearPreview();tool=t;document.querySelectorAll('.rail .tool').forEach(b=>b.classList.remove('active'));({draw:'#drawTool',erase:'#eraseTool',select:'#selectTool',orbit:'#orbitTool'}[t]&&document.querySelector(({draw:'#drawTool',erase:'#eraseTool',select:'#selectTool',orbit:'#orbitTool'}[t])).classList.add('active'));if(t==='draw'||t==='erase'){transform.detach();orbit.enabled=false;}if(t==='select'){orbit.enabled=false;const g=layers[activeLayer].group;if(g.children.length)transform.attach(g);}if(t==='orbit'){transform.detach();orbit.enabled=true;orbit.enableRotate=true;orbit.enablePan=true;orbit.enableZoom=true;}canvas.style.cursor=t==='draw'?'none':t==='erase'?'crosshair':'grab';brushCursor.style.display='none';document.querySelector('#hint').textContent=t==='orbit'?('Right-drag to orbit · Shift/right-drag or middle-drag to pan · Wheel to zoom'):t==='erase'?'Erase parts of strokes on the active layer · Two fingers orbit + pinch to zoom':'One finger draws on the view plane · Rotate the camera to change drawing direction · Two fingers orbit + pinch to zoom';}
+function setTool(t){if(drawing)finishStroke(true);clearPreview();tool=t;document.querySelectorAll('.rail .tool').forEach(b=>b.classList.remove('active'));({draw:'#drawTool',erase:'#eraseTool',select:'#selectTool',orbit:'#orbitTool'}[t]&&document.querySelector(({draw:'#drawTool',erase:'#eraseTool',select:'#selectTool',orbit:'#orbitTool'}[t])).classList.add('active'));if(t==='draw'||t==='erase'){transform.detach();orbit.enabled=false;}if(t==='select'){orbit.enabled=false;const g=layers[activeLayer].group;if(g.children.length)transform.attach(g);}if(t==='orbit'){transform.detach();orbit.enabled=true;orbit.enableRotate=true;orbit.enablePan=true;orbit.enableZoom=true;}canvas.style.cursor=t==='draw'?'none':t==='erase'?'none':'grab';brushCursor.style.display='none';document.querySelector('#hint').textContent=t==='orbit'?('Right-drag to orbit · Shift/right-drag or middle-drag to pan · Wheel to zoom'):t==='erase'?'Erase parts of strokes on the active layer · Two fingers orbit + pinch to zoom':'One finger draws on the view plane · Rotate the camera to change drawing direction · Two fingers orbit + pinch to zoom';}
 document.querySelector('#drawTool').onclick=()=>setTool(tool==='draw'?'select':'draw');document.querySelector('#eraseTool').onclick=()=>setTool(tool==='erase'?'draw':'erase');document.querySelector('#selectTool').onclick=()=>setTool(tool==='select'?'draw':'select');
 function resetCamera(){orbit.target.set(0,0,0);camera.up.set(0,1,0);camera.position.set(9,7,12);camera.lookAt(0,0,0);camera.fov=42;camera.updateProjectionMatrix();orbit.update();}
 function cameraZoom(factor){const offset=camera.position.clone().sub(orbit.target);offset.multiplyScalar(factor);const distance=THREE.MathUtils.clamp(offset.length(),orbit.minDistance,orbit.maxDistance);offset.setLength(distance);camera.position.copy(orbit.target).add(offset);orbit.update();}document.querySelector('#zoomIn').onclick=()=>cameraZoom(.8);document.querySelector('#zoomOut').onclick=()=>cameraZoom(1.25);document.querySelector('#cameraReset').onclick=()=>{resetCamera();};
@@ -467,7 +464,7 @@ document.querySelector('#eraserSize').oninput=e=>{eraserRadiusPx=+e.target.value
 document.querySelector('#opacity').oninput=e=>opacity=+e.target.value/100;
 document.querySelectorAll('.swatch').forEach((b,i)=>{if(i===0)b.classList.add('selected');b.onclick=()=>{color=b.dataset.color;document.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('selected',s===b));document.querySelector('#brushCursor').style.setProperty('--cursor-color',color);};});
 const brushCursor=document.querySelector('#brushCursor');
-viewport.addEventListener('pointermove',e=>{if(e.pointerType==='touch'||tool!=='draw'){brushCursor.style.display='none';return;}const r=viewport.getBoundingClientRect();brushCursor.style.display='block';brushCursor.style.left=(e.clientX-r.left)+'px';brushCursor.style.top=(e.clientY-r.top)+'px';brushCursor.style.width=brushCursor.style.height=Math.max(12,brushSize*2)+'px';});
+viewport.addEventListener('pointermove',e=>{if(e.pointerType==='touch'||(tool!=='draw'&&tool!=='erase')){brushCursor.style.display='none';return;}const r=viewport.getBoundingClientRect();brushCursor.style.display='block';brushCursor.style.left=(e.clientX-r.left)+'px';brushCursor.style.top=(e.clientY-r.top)+'px';const diameter=Math.max(2,(tool==='erase'?eraserRadiusPx:brushSize)*2);brushCursor.style.width=brushCursor.style.height=diameter+'px';brushCursor.style.borderRadius=tool==='erase'?'3px':'50%';brushCursor.style.setProperty('--cursor-color',tool==='erase'?'#ff684d':color);});
 viewport.addEventListener('pointerleave',()=>brushCursor.style.display='none');
 function comicPop(x,y,label='NICE!'){const el=document.createElement('div');el.className='comic-pop';el.textContent=label;el.style.left=x+'px';el.style.top=y+'px';document.body.append(el);setTimeout(()=>el.remove(),650);}
 document.querySelectorAll('.top-actions button,.bottom button,.rail button').forEach(btn=>btn.addEventListener('click',()=>{const r=btn.getBoundingClientRect();const labels={'saveBtn':'SAVED!','exportBtn':'INK IT!','addLayer':'NEW PAGE!','newBtn':'NEW PAGE!','clearBtn':'FRESH SHEET!','keyBtn':'SNAP!','playBtn':'ACTION!'};const label=labels[btn.id];if(label)comicPop(r.left+r.width/2,r.top+r.height/2,label);}));
