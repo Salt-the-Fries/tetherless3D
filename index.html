@@ -209,13 +209,13 @@ function pointFromEvent(e){
   const point=new THREE.Vector3();
   return pointerRaycaster.ray.intersectPlane(strokePlane,point)?point:null;
 }
-function strokeMaterial(){return new THREE.MeshStandardMaterial({color,transparent:opacity<1,opacity,roughness:.82,metalness:0,depthWrite:false,depthTest:true});}
+function strokeMaterial(){return new THREE.MeshStandardMaterial({color,transparent:opacity<1,opacity,roughness:.82,metalness:0,depthWrite:opacity>=1,depthTest:true});}
 function makeSquareStroke(points){
   if(!points.length)return null;
   const radius=Math.max(.012,brushSize*.008);
   if(points.length===1){
     const dab=new THREE.Mesh(new THREE.BoxGeometry(radius*2,radius*2,radius*2),strokeMaterial());
-    dab.position.copy(points[0]);dab.userData.stroke=true;dab.renderOrder=++strokeRenderOrder;dab.material.depthWrite=false;return dab;
+    dab.position.copy(points[0]);dab.userData.stroke=true;dab.renderOrder=++strokeRenderOrder;return dab;
   }
   const curve=new THREE.CatmullRomCurve3(points);
   const segments=Math.max(8,points.length*3);
