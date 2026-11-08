@@ -142,14 +142,14 @@ button.active{animation:stamp .24s ease-out}
   .bottom{padding:5px 8px}
   .viewport:after{inset:4% 5%}
 }
-</style>
+.transform-modes{position:absolute;z-index:8;left:50%;top:14px;transform:translateX(-50%);display:none;gap:4px;padding:4px;background:#fff4db;border:2px solid #282321;box-shadow:3px 4px 0 #282321}.transform-modes.open{display:flex}.transform-modes button{min-width:38px;height:34px;border:1.5px solid #282321;background:#f3e3c3;color:#282321;font-weight:900}.transform-modes button.active{background:#ff9473;box-shadow:inset 0 -3px 0 #b74c31}@media(max-width:760px){.transform-modes{top:12px}.transform-modes button{min-width:34px;height:32px}}</style>
 </head>
 <body>
 <div class="app">
 <header class="top"><div><div class="brand">TETHERLESS<span>3D</span></div><div class="sub">CUT PAPER · INK · IMAGINATION</div></div><div class="top-actions"><button id="panelBtn" class="mobile-panels">☷</button><button id="saveBtn">Save</button></div></header>
 <main class="workspace"><nav class="rail">
 <button class="tool active" id="drawTool" title="Draw">✎</button><button class="tool" id="eraseTool" title="Eraser">⌫</button><button class="tool" id="moveTool" title="Move strokes">✥</button><button class="tool" id="selectTool" title="Select / transform">↗</button><button class="tool" id="undoBtn" title="Undo">↶</button><button class="tool" id="redoBtn" title="Redo">↷</button>
-</nav><section class="viewport"><canvas id="stage"></canvas><canvas id="eraserPreviewCanvas" aria-hidden="true"></canvas><div id="brushCursor"></div><div class="mode-pill" id="modeLabel">3D DRAWING SPACE</div><div class="camera-dock" aria-label="Camera controls"><button id="zoomOut" title="Zoom out">−</button><button id="zoomIn" title="Zoom in">＋</button><button id="cameraReset" title="Reset camera">⌂</button></div><div class="hint" id="hint">Draw · Choose Move, then tap a stroke and drag it · Two fingers orbit + pinch to zoom</div><div id="engineError" role="status" style="display:none;position:absolute;z-index:20;left:12px;right:12px;top:64px;padding:12px;background:#fff0e8;border:2px solid #9d3022;color:#6b2018;font-weight:800;white-space:pre-wrap">3D engine error</div></section>
+</nav><section class="viewport"><canvas id="stage"></canvas><canvas id="eraserPreviewCanvas" aria-hidden="true"></canvas><div id="brushCursor"></div><div class="mode-pill" id="modeLabel">3D DRAWING SPACE</div><div class="transform-modes" id="transformModes" aria-label="Transform mode"><button type="button" data-mode="translate" class="active" title="Move">↔</button><button type="button" data-mode="rotate" title="Rotate">⟳</button><button type="button" data-mode="scale" title="Scale">⤢</button></div><div class="camera-dock" aria-label="Camera controls"><button id="zoomOut" title="Zoom out">−</button><button id="zoomIn" title="Zoom in">＋</button><button id="cameraReset" title="Reset camera">⌂</button></div><div class="hint" id="hint">Draw · Choose Move, then tap a stroke and drag it · Two fingers orbit + pinch to zoom</div><div id="engineError" role="status" style="display:none;position:absolute;z-index:20;left:12px;right:12px;top:64px;padding:12px;background:#fff0e8;border:2px solid #9d3022;color:#6b2018;font-weight:800;white-space:pre-wrap">3D engine error</div></section>
 <aside class="side" id="side">
 <div><div class="section-head">Layers <button id="addLayer">＋</button></div><div id="layers"></div></div>
 <div><div class="section-head">Brush <small id="sizeVal">6 px</small></div>
@@ -188,7 +188,7 @@ const ambient=new THREE.HemisphereLight(0xffffff,0x555566,2);scene.add(ambient);
 const grid=new THREE.GridHelper(20,20,0x59604e,0x343a32);grid.position.y=-2.5;scene.add(grid);
 const root=new THREE.Group();scene.add(root);
 const testCube=new THREE.Group();const cubeMesh=new THREE.Mesh(new THREE.BoxGeometry(2,2,2),new THREE.MeshStandardMaterial({color:0xff765e,roughness:.48,metalness:.05}));const cubeEdges=new THREE.LineSegments(new THREE.EdgesGeometry(cubeMesh.geometry),new THREE.LineBasicMaterial({color:0x282321,linewidth:2}));testCube.add(cubeMesh,cubeEdges);testCube.visible=true;scene.add(testCube);
-const transform=new TransformControls(camera,renderer.domElement);scene.add(transform);transform.setMode('translate');let gizmoDragging=false;transform.addEventListener('dragging-changed',e=>{gizmoDragging=e.value;orbit.enabled=false;if(gizmoDragging){if(drawing)finishStroke(false);activePointers.clear();gestureState=null;mouseCamera=null;}});
+const transform=new TransformControls(camera,renderer.domElement);scene.add(transform);transform.setMode('translate');let gizmoDragging=false;transform.addEventListener('mouseDown',()=>{if(transform.object)transformBefore={position:transform.object.position.toArray(),quaternion:transform.object.quaternion.toArray(),scale:transform.object.scale.toArray()};});transform.addEventListener('mouseUp',()=>{if(transform.object&&transformBefore){const object=transform.object,after={position:object.position.toArray(),quaternion:object.quaternion.toArray(),scale:object.scale.toArray()};if(JSON.stringify(transformBefore)!==JSON.stringify(after))recordAction({type:'transform',object,before:transformBefore,after});transformBefore=null;}});transform.addEventListener('dragging-changed',e=>{gizmoDragging=e.value;orbit.enabled=false;if(gizmoDragging){if(drawing)finishStroke(false);activePointers.clear();gestureState=null;mouseCamera=null;}});
 const orbit=new (await import('three/addons/controls/OrbitControls.js')).OrbitControls(camera,renderer.domElement);orbit.enableDamping=true;orbit.dampingFactor=.08;orbit.enableZoom=true;orbit.enablePan=true;orbit.enableRotate=true;orbit.minDistance=2.5;orbit.maxDistance=40;orbit.zoomSpeed=.9;orbit.panSpeed=.85;orbit.rotateSpeed=.75;orbit.target.set(0,0,0);orbit.enabled=false;
 let activeLayer=0,tool='draw',color='#d9f78a',brushSize=6,eraserRadiusPx=6,opacity=1,velocitySensitivity=1,endTaper=.35,drawing=false,currentPoints=[],currentBrushSamples=[],currentLine=null,undoStack=[],redoStack=[],keyframes=[],playing=false,playStart=0;let lastBrushPointer=null,smoothedBrushSpeed=0;
 const layers=[];
@@ -197,9 +197,9 @@ addLayer('Starfish');addLayer('Details');activeLayer=0;
 function renderLayers(){const el=document.querySelector('#layers');el.innerHTML='';layers.forEach((l,i)=>{const row=document.createElement('div');row.className='layer'+(i===activeLayer?' active':'');row.innerHTML='<span class="dot"></span><span></span><button title="Visibility">◉</button>';row.children[1].textContent=l.name;row.addEventListener('click',e=>{if(e.target.tagName==='BUTTON'){l.visible=!l.visible;l.group.visible=l.visible;e.target.textContent=l.visible?'◉':'○';return;}activeLayer=i;renderLayers();if(tool==='select'&&l.group.children.length)transform.attach(l.group);});el.append(row);});}
 // History stores object references, never full serialized copies of the entire scene.
 function recordAction(action){undoStack.push(action);if(undoStack.length>500)undoStack.shift();redoStack=[];}
-function applyStrokeMove(a,forward){a.object.position.fromArray(forward?a.newPosition:a.oldPosition);}
-function undoAction(){const action=undoStack.pop();if(!action)return;if(action.type==='add'){action.group.remove(action.object);}else if(action.type==='clear'){for(const object of action.objects)action.group.add(object);}else if(action.type==='replace'){for(const object of action.added)action.group.remove(object);for(const object of action.removed)action.group.add(object);}else if(action.type==='move')applyStrokeMove(action,false);redoStack.push(action);}
-function redoAction(){const action=redoStack.pop();if(!action)return;if(action.type==='add'){action.group.add(action.object);}else if(action.type==='clear'){for(const object of action.objects)action.group.remove(object);}else if(action.type==='replace'){for(const object of action.removed)action.group.remove(object);for(const object of action.added)action.group.add(object);}else if(action.type==='move')applyStrokeMove(action,true);undoStack.push(action);}
+function applyStrokeTransform(a,forward){const v=forward?a.after:a.before;a.object.position.fromArray(v.position);a.object.quaternion.fromArray(v.quaternion);a.object.scale.fromArray(v.scale);}
+function undoAction(){const action=undoStack.pop();if(!action)return;if(action.type==='add'){action.group.remove(action.object);}else if(action.type==='clear'){for(const object of action.objects)action.group.add(object);}else if(action.type==='replace'){for(const object of action.added)action.group.remove(object);for(const object of action.removed)action.group.add(object);}else if(action.type==='transform')applyStrokeTransform(action,false);redoStack.push(action);}
+function redoAction(){const action=redoStack.pop();if(!action)return;if(action.type==='add'){action.group.add(action.object);}else if(action.type==='clear'){for(const object of action.objects)action.group.remove(object);}else if(action.type==='replace'){for(const object of action.removed)action.group.remove(object);for(const object of action.added)action.group.add(object);}else if(action.type==='transform')applyStrokeTransform(action,true);undoStack.push(action);}
 // Each stroke lives on a camera-facing plane through the current 3D orbit target.
 // Rotating the camera changes the plane, so strokes can be drawn in any view direction.
 const strokePlane=new THREE.Plane();
@@ -242,7 +242,7 @@ function makeSquareStroke(points,style={}){
   const radius=Math.max(.012,strokeSize*.008);
   if(points.length===1){
     const dab=new THREE.Mesh(new THREE.BoxGeometry(radius*2,radius*2,radius*2),strokeMaterial({color:strokeColor,opacity:strokeOpacity}));
-    dab.position.copy(points[0]);dab.userData.stroke=true;dab.userData.centerline=[points[0].toArray()];dab.userData.style={color:strokeColor,opacity:strokeOpacity,size:strokeSize};dab.renderOrder=++strokeRenderOrder;return dab;
+    dab.position.copy(points[0]);dab.userData.stroke=true;dab.userData.centerline=[[0,0,0]];dab.userData.style={color:strokeColor,opacity:strokeOpacity,size:strokeSize};dab.renderOrder=++strokeRenderOrder;return dab;
   }
   const curve=new THREE.CatmullRomCurve3(points);
   const segments=Math.max(8,points.length*3),frames=curve.computeFrenetFrames(segments,false);
@@ -272,7 +272,7 @@ function makeSquareStroke(points,style={}){
   geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
   geometry.setIndex(indices);geometry.computeVertexNormals();
   const material=strokeMaterial({color:strokeColor,opacity:strokeOpacity});material.flatShading=true;material.side=THREE.DoubleSide;material.needsUpdate=true;
-  const mesh=new THREE.Mesh(geometry,material);mesh.userData.stroke=true;mesh.userData.centerline=points.map(p=>p.toArray());mesh.userData.style={color:strokeColor,opacity:strokeOpacity,size:strokeSize};mesh.userData.brushSamples=samples;mesh.renderOrder=++strokeRenderOrder;return mesh;
+  const mesh=new THREE.Mesh(geometry,material);mesh.userData.stroke=true;const center=new THREE.Vector3();geometry.computeBoundingBox();geometry.boundingBox.getCenter(center);geometry.translate(-center.x,-center.y,-center.z);mesh.position.copy(center);mesh.userData.centerline=points.map(p=>p.clone().sub(center).toArray());mesh.userData.style={color:strokeColor,opacity:strokeOpacity,size:strokeSize};mesh.userData.brushSamples=samples;mesh.renderOrder=++strokeRenderOrder;return mesh;
 }
 function makeStroke(points){
   const mesh=makeSquareStroke(points,{color,opacity,size:brushSize,samples:currentBrushSamples});if(mesh){const group=layers[activeLayer].group;group.add(mesh);recordAction({type:'add',group,object:mesh});}
@@ -293,13 +293,11 @@ function distanceToErasePathPx(point,path){
   }
   return best;
 }
-let selectedStroke=null,strokeMove=null;
+let selectedStroke=null,transformBefore=null;
 function highlightStroke(o,on){if(!o?.material?.emissive)return;if(on){if(o.userData.selectionEmissive===undefined)o.userData.selectionEmissive=o.material.emissive.getHex();o.material.emissive.setHex(0xff684d);}else if(o.userData.selectionEmissive!==undefined){o.material.emissive.setHex(o.userData.selectionEmissive);delete o.userData.selectionEmissive;}}
-function findStrokeAtScreen(x,y,group){let best=null,bestSq=24*24;for(const o of group.children){if(!o.userData.stroke||!o.userData.centerline)continue;const pts=o.userData.centerline.map(p=>new THREE.Vector3(...p).add(o.position));const projected=pts.map(projectErasePoint);const d=distanceToErasePathPx({x,y},projected);if(d<bestSq){bestSq=d;best=o;}}return best;}
-function selectStroke(o){if(selectedStroke&&selectedStroke!==o)highlightStroke(selectedStroke,false);selectedStroke=o;if(o)highlightStroke(o,true);}
+function findStrokeAtScreen(x,y,group){const rect=viewport.getBoundingClientRect(),local={x:x-rect.left,y:y-rect.top};let best=null,bestSq=24*24;for(const o of group.children){if(!o.userData.stroke||!o.userData.centerline)continue;const projected=o.userData.centerline.map(p=>projectErasePoint(o.localToWorld(new THREE.Vector3(...p))));const d=distanceToErasePathPx(local,projected);if(d<bestSq){bestSq=d;best=o;}}return best;}
+function selectStroke(o){if(selectedStroke&&selectedStroke!==o)highlightStroke(selectedStroke,false);selectedStroke=o;if(o)highlightStroke(o,true);if(tool==='move'){if(o){transform.attach(o);document.querySelector('#transformModes').classList.add('open');}else{transform.detach();document.querySelector('#transformModes').classList.remove('open');}}}
 function beginPendingDraw(p){prepareStrokePlane();const point=pointFromEvent({clientX:p.x,clientY:p.y});if(!point)return;drawing=true;activeStrokeTool=p.tool;activeStrokeGroup=p.group;currentPoints=[point];smoothedBrushSpeed=0;lastBrushPointer=null;currentBrushSamples=[sampleBrushVelocity({clientX:p.x,clientY:p.y,timeStamp:p.timeStamp},true)];if(p.tool==='erase'){eraserScreenPoints=[];addEraserScreenPoint({clientX:p.x,clientY:p.y});updateEraserPreview();}else updateStrokePreview();}
-function beginStrokeMove(o,g,x,y){selectStroke(o);const p=pointFromEvent({clientX:x,clientY:y});strokeMove=p?{object:o,group:g,lastPoint:p,oldPosition:o.position.toArray()}:null;}
-function finishStrokeMove(){if(!strokeMove)return;const m=strokeMove;strokeMove=null;const next=m.object.position.toArray();if(m.oldPosition.some((v,i)=>Math.abs(v-next[i])>1e-6))recordAction({type:'move',object:m.object,group:m.group,oldPosition:m.oldPosition,newPosition:next});}
 function compactErasePath(path){
   if(path.length<3)return path;
   const compact=[path[0]];let last=path[0];
@@ -311,11 +309,11 @@ function findEraserHits(path,group){
   for(const object of group.children){
     if(!object.userData.stroke||!object.userData.centerline)continue;
     const source=object.userData.centerline;if(!source.length)continue;
-    const curve=source.length>=2?new THREE.CatmullRomCurve3(source.map(p=>new THREE.Vector3(...p))):null;
+    const curve=source.length>=2?new THREE.CatmullRomCurve3(source.map(p=>object.localToWorld(new THREE.Vector3(...p)))):null;
     const count=curve?Math.min(900,Math.max(24,source.length*3)):1;
     let hit=false;
     for(let i=0;i<count;i++){
-      const p=curve?curve.getPointAt(count===1?0:i/(count-1)):new THREE.Vector3(...source[0]);
+      const p=curve?curve.getPointAt(count===1?0:i/(count-1)):object.localToWorld(new THREE.Vector3(...source[0]));
       if(distanceToErasePathPx(projectErasePoint(p),erasePath)<=radiusSq){hit=true;break;}
     }
     if(hit)hits.push(object);
@@ -327,7 +325,7 @@ function computeEraserResult(path,group){
   const erasePath=compactErasePath(path.map(projectErasePoint)),radiusSq=eraserRadiusPx*eraserRadiusPx;
   for(const object of [...group.children]){
     if(!object.userData.stroke||!object.userData.centerline)continue;
-    const source=object.userData.centerline.map(p=>new THREE.Vector3(...p).add(object.position));if(!source.length)continue;
+    const source=object.userData.centerline.map(p=>object.localToWorld(new THREE.Vector3(...p)));if(!source.length)continue;
     const curve=source.length>=2?new THREE.CatmullRomCurve3(source):null;
     const count=curve?Math.min(900,Math.max(24,source.length*3)):1;
     const samples=curve?curve.getPoints(count-1):source;
@@ -439,14 +437,14 @@ canvas.addEventListener('wheel',e=>{e.preventDefault();zoomBy(e.deltaY>0?1.08:.9
 canvas.addEventListener('pointerdown',e=>{
   if(e.pointerType==='touch'){
     activePointers.set(e.pointerId,{x:e.clientX,y:e.clientY});try{canvas.setPointerCapture(e.pointerId);}catch{}
-    if(activePointers.size===2){if(strokeMove)finishStrokeMove();beginTwoFingerGesture();return;}
+    if(activePointers.size===2){beginTwoFingerGesture();return;}
     if(activePointers.size>2)return;
   }else if(e.button===2||e.button===1){mouseCamera={id:e.pointerId,x:e.clientX,y:e.clientY,pan:e.button===1||e.shiftKey};try{canvas.setPointerCapture(e.pointerId);}catch{}return;}
   if(transform.dragging||gizmoDragging)return;
   if(tool==='move'){
     prepareStrokePlane();
     const group=layers[activeLayer].group,hit=findStrokeAtScreen(e.clientX,e.clientY,group);
-    if(hit)beginStrokeMove(hit,group,e.clientX,e.clientY);else selectStroke(null);
+    selectStroke(hit);
     return;
   }
   if(tool!=='draw'&&tool!=='erase')return;
@@ -472,7 +470,6 @@ canvas.addEventListener('pointermove',e=>{
     if(mouseCamera.pan)cameraPan(dx,dy);else cameraOrbit(dx,dy);
     mouseCamera.x=e.clientX;mouseCamera.y=e.clientY;return;
   }
-  if(strokeMove){const p=pointFromEvent(e);if(p){const d=p.clone().sub(strokeMove.lastPoint);strokeMove.object.position.add(d);strokeMove.lastPoint=p;}return;}
   if(!drawing||gizmoDragging)return;
   const point=pointFromEvent(e);if(!point)return;
   if(currentPoints[currentPoints.length-1].distanceTo(point)>Math.max(.018,brushSize*.0025)){
@@ -482,7 +479,6 @@ canvas.addEventListener('pointermove',e=>{
   }
 });
 function endPointer(e){
-  if(strokeMove)finishStrokeMove();
   if(activePointers.has(e.pointerId)){
     activePointers.delete(e.pointerId);gestureState=null;
     if(activePointers.size===0){if(drawing)finishStroke(true);else currentPoints=[];}
@@ -493,7 +489,6 @@ function endPointer(e){
 }
 canvas.addEventListener('pointerup',endPointer);
 function cancelPointer(e){
-  if(strokeMove)finishStrokeMove();
   if(activePointers.has(e.pointerId)){
     activePointers.delete(e.pointerId);gestureState=null;
     if(drawing)finishStroke(false);
@@ -506,7 +501,8 @@ canvas.addEventListener('pointercancel',cancelPointer);
 canvas.addEventListener('lostpointercapture',cancelPointer);
 window.addEventListener('blur',()=>{if(strokeMove)finishStrokeMove();activePointers.clear();gestureState=null;mouseCamera=null;if(drawing)finishStroke(false);});
 document.addEventListener('visibilitychange',()=>{if(document.hidden){if(strokeMove)finishStrokeMove();activePointers.clear();gestureState=null;mouseCamera=null;if(drawing)finishStroke(false);}});
-function setTool(t){if(drawing)finishStroke(true);if(strokeMove)finishStrokeMove();clearPreview();tool=t;document.querySelectorAll('.rail .tool').forEach(b=>b.classList.remove('active'));({draw:'#drawTool',erase:'#eraseTool',move:'#moveTool',select:'#selectTool',orbit:'#orbitTool'}[t]&&document.querySelector(({draw:'#drawTool',erase:'#eraseTool',move:'#moveTool',select:'#selectTool',orbit:'#orbitTool'}[t])).classList.add('active'));if(t==='draw'||t==='erase'||t==='move'){transform.detach();orbit.enabled=false;}if(t==='select'){orbit.enabled=false;const g=layers[activeLayer].group;if(g.children.length)transform.attach(g);}if(t==='orbit'){transform.detach();orbit.enabled=true;orbit.enableRotate=true;orbit.enablePan=true;orbit.enableZoom=true;}canvas.style.cursor=t==='draw'||t==='erase'?'none':t==='move'?'grab':'grab';brushCursor.style.display='none';document.querySelector('#hint').textContent=t==='move'?'Tap a stroke to select it, then drag to move · Two fingers orbit + pinch to zoom':t==='erase'?'Erase parts of strokes on the active layer · Two fingers orbit + pinch to zoom':t==='select'?'Select the active layer and use its 3D transform gizmo':'Draw on the view plane · Rotate the camera to change drawing direction · Two fingers orbit + pinch to zoom';}
+function setTool(t){if(drawing)finishStroke(true);if(strokeMove)finishStrokeMove();clearPreview();tool=t;document.querySelectorAll('.rail .tool').forEach(b=>b.classList.remove('active'));({draw:'#drawTool',erase:'#eraseTool',move:'#moveTool',select:'#selectTool',orbit:'#orbitTool'}[t]&&document.querySelector(({draw:'#drawTool',erase:'#eraseTool',move:'#moveTool',select:'#selectTool',orbit:'#orbitTool'}[t])).classList.add('active'));if(t==='draw'||t==='erase'){transform.detach();document.querySelector('#transformModes').classList.remove('open');orbit.enabled=false;}if(t==='move'){orbit.enabled=false;if(selectedStroke){transform.attach(selectedStroke);document.querySelector('#transformModes').classList.add('open');}else transform.detach();}if(t==='select'){orbit.enabled=false;const g=layers[activeLayer].group;if(g.children.length)transform.attach(g);}if(t==='orbit'){transform.detach();orbit.enabled=true;orbit.enableRotate=true;orbit.enablePan=true;orbit.enableZoom=true;}canvas.style.cursor=t==='draw'||t==='erase'?'none':t==='move'?'grab':'grab';brushCursor.style.display='none';document.querySelector('#transformModes').classList.toggle('open',t==='move'&&!!selectedStroke);document.querySelector('#hint').textContent=t==='move'?'Tap a stroke to select it, then use the 3D gizmo to move, rotate or scale it':t==='erase'?'Erase parts of strokes on the active layer · Two fingers orbit + pinch to zoom':t==='select'?'Select the active layer and use its 3D transform gizmo':'Draw on the view plane · Rotate the camera to change drawing direction · Two fingers orbit + pinch to zoom';}
+document.querySelectorAll('#transformModes button').forEach(b=>b.addEventListener('click',()=>{transform.setMode(b.dataset.mode);document.querySelectorAll('#transformModes button').forEach(x=>x.classList.toggle('active',x===b));}));
 document.querySelector('#drawTool').onclick=()=>setTool('draw');document.querySelector('#eraseTool').onclick=()=>setTool(tool==='erase'?'draw':'erase');document.querySelector('#moveTool').onclick=()=>setTool('move');document.querySelector('#selectTool').onclick=()=>setTool(tool==='select'?'draw':'select');
 function resetCamera(){orbit.target.set(0,0,0);camera.up.set(0,1,0);camera.position.set(9,7,12);camera.lookAt(0,0,0);camera.fov=42;camera.updateProjectionMatrix();orbit.update();}
 function cameraZoom(factor){const offset=camera.position.clone().sub(orbit.target);offset.multiplyScalar(factor);const distance=THREE.MathUtils.clamp(offset.length(),orbit.minDistance,orbit.maxDistance);offset.setLength(distance);camera.position.copy(orbit.target).add(offset);orbit.update();}document.querySelector('#zoomIn').onclick=()=>cameraZoom(.8);document.querySelector('#zoomOut').onclick=()=>cameraZoom(1.25);document.querySelector('#cameraReset').onclick=()=>{resetCamera();};
