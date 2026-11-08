@@ -56,6 +56,25 @@ button.active{animation:stamp .24s ease-out}
 @media(max-width:760px){.side.open{background-color:#fff6e5;border-left:3px solid var(--line);box-shadow:-8px 0 0 #28232125}.brand{font-size:15px}.top{background:#f9efd9}.tool{width:39px}.viewport:before{inset:8px}.mode-pill{top:16px;left:16px}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
 
+
+/* COMIC STUDIO INTERACTION PASS */
+.viewport:after{content:"";position:absolute;z-index:0;inset:5.5% 5%;pointer-events:none;background-color:#fff9e9;background-image:radial-gradient(#7b67451b .7px,transparent .7px),linear-gradient(135deg,#fffdf4,#f4e8cf);background-size:7px 7px,100% 100%;border:2px solid #282321;box-shadow:8px 9px 0 #282321,12px 13px 0 var(--orange);clip-path:polygon(0 1%,8% 0,17% 1%,26% 0,37% 1%,48% 0,60% 1%,72% 0,83% 1%,100% 0,99% 18%,100% 34%,99% 50%,100% 68%,99% 84%,100% 100%,82% 99%,65% 100%,48% 99%,31% 100%,14% 99%,0 100%,1% 82%,0 66%,1% 49%,0 32%,1% 16%);opacity:.92}
+.viewport:before{z-index:0;inset:4.5%;border:2px dashed #51433335}
+#stage{z-index:1}
+#brushCursor{position:absolute;z-index:4;width:24px;height:24px;border:2px solid #282321;border-radius:50%;pointer-events:none;transform:translate(-50%,-50%);display:none;box-shadow:2px 2px 0 var(--orange),inset 0 0 0 3px #fff9e9aa;mix-blend-mode:multiply}
+#brushCursor:after{content:"";position:absolute;inset:7px;border-radius:50%;background:var(--cursor-color,var(--orange))}
+.comic-pop{position:fixed;z-index:30;pointer-events:none;font-size:13px;font-weight:1000;letter-spacing:1px;color:#282321;background:var(--lime);border:2px solid #282321;padding:5px 9px;box-shadow:3px 3px 0 #282321;transform:translate(-50%,-50%) rotate(-8deg);animation:comicPop .62s cubic-bezier(.18,.85,.25,1) forwards}
+@keyframes comicPop{0%{opacity:0;transform:translate(-50%,-35%) scale(.25) rotate(-20deg)}35%{opacity:1;transform:translate(-50%,-65%) scale(1.18) rotate(5deg)}70%{opacity:1;transform:translate(-50%,-95%) scale(.96) rotate(-3deg)}100%{opacity:0;transform:translate(-50%,-145%) scale(.8) rotate(7deg)}}
+@keyframes panelShuffle{0%{opacity:0;transform:translateX(24px) rotate(2deg)}70%{opacity:1;transform:translateX(-4px) rotate(-.5deg)}100%{transform:translateX(0) rotate(0)}}
+.side.open{animation:panelShuffle .32s cubic-bezier(.2,.8,.2,1) both}
+.swatch{position:relative;transition:transform .16s,box-shadow .16s}
+.swatch.selected{outline:2px dashed #282321;outline-offset:3px;transform:translateY(-3px) rotate(-7deg);box-shadow:3px 4px 0 #282321}
+.section-head{position:relative;padding-bottom:6px;border-bottom:2px solid #282321}
+.section-head:after{content:"";position:absolute;bottom:-3px;left:0;width:28px;height:4px;background:var(--orange);transform:rotate(-2deg)}
+.top-actions button,.bottom button,.rail button{will-change:transform}
+@media(max-width:760px){.viewport:after{inset:6% 4% 7%;box-shadow:5px 6px 0 #282321,8px 9px 0 var(--orange)}#brushCursor{display:none!important}}
+@media(prefers-reduced-motion:reduce){.comic-pop{display:none}.side.open{animation:none}}
+
 </style>
 </head>
 <body>
@@ -63,7 +82,7 @@ button.active{animation:stamp .24s ease-out}
 <header class="top"><div><div class="brand">TETHERLESS<span>3D</span></div><div class="sub">CUT PAPER · INK · IMAGINATION</div></div><div class="top-actions"><button id="mode2d" class="active">2D</button><button id="mode3d">3D</button><button id="panelBtn" class="mobile-panels">☷</button><button id="saveBtn">Save</button></div></header>
 <main class="workspace"><nav class="rail">
 <button class="tool active" id="drawTool" title="Draw">✎</button><button class="tool" id="selectTool" title="Select / transform">↗</button><button class="tool" id="orbitTool" title="Orbit camera">◎</button><button class="tool" id="undoBtn" title="Undo">↶</button><button class="tool" id="redoBtn" title="Redo">↷</button>
-</nav><section class="viewport"><canvas id="stage"></canvas><div class="mode-pill" id="modeLabel">PAPER CANVAS · FRONT VIEW</div><div class="hint" id="hint">Draw with one finger · Select a layer to move the whole drawing</div></section>
+</nav><section class="viewport"><canvas id="stage"></canvas><div id="brushCursor"></div><div class="mode-pill" id="modeLabel">PAPER CANVAS · FRONT VIEW</div><div class="hint" id="hint">Draw with one finger · Select a layer to move the whole drawing</div></section>
 <aside class="side" id="side">
 <div><div class="section-head">Layers <button id="addLayer">＋</button></div><div id="layers"></div></div>
 <div><div class="section-head">Brush <small id="sizeVal">6 px</small></div>
@@ -100,14 +119,19 @@ function makeStroke(points){if(points.length<2)return;const curve=new THREE.Catm
 canvas.addEventListener('pointerdown',e=>{if(tool!=='draw'||transform.dragging)return;drawing=true;canvas.setPointerCapture(e.pointerId);currentPoints=[pointFromEvent(e)];});
 canvas.addEventListener('pointermove',e=>{if(!drawing)return;const p=pointFromEvent(e);if(currentPoints[currentPoints.length-1].distanceTo(p)>.025)currentPoints.push(p);});
 canvas.addEventListener('pointerup',()=>{if(!drawing)return;drawing=false;snapshot();makeStroke(currentPoints);currentPoints=[];});
-function setTool(t){tool=t;document.querySelectorAll('.rail .tool').forEach(b=>b.classList.remove('active'));({draw:'#drawTool',select:'#selectTool',orbit:'#orbitTool'}[t]&&document.querySelector(({draw:'#drawTool',select:'#selectTool',orbit:'#orbitTool'}[t])).classList.add('active'));if(t==='draw'){transform.detach();orbit.enabled=false;}if(t==='select'){orbit.enabled=false;const g=layers[activeLayer].group;if(g.children.length)transform.attach(g);}if(t==='orbit'){transform.detach();orbit.enabled=true;}canvas.style.cursor=t==='draw'?'crosshair':'grab';}
+function setTool(t){tool=t;document.querySelectorAll('.rail .tool').forEach(b=>b.classList.remove('active'));({draw:'#drawTool',select:'#selectTool',orbit:'#orbitTool'}[t]&&document.querySelector(({draw:'#drawTool',select:'#selectTool',orbit:'#orbitTool'}[t])).classList.add('active'));if(t==='draw'){transform.detach();orbit.enabled=false;}if(t==='select'){orbit.enabled=false;const g=layers[activeLayer].group;if(g.children.length)transform.attach(g);}if(t==='orbit'){transform.detach();orbit.enabled=true;}canvas.style.cursor=t==='draw'?'none':'grab';brushCursor.style.display='none';}
 document.querySelector('#drawTool').onclick=()=>setTool('draw');document.querySelector('#selectTool').onclick=()=>setTool('select');document.querySelector('#orbitTool').onclick=()=>setTool('orbit');
 document.querySelector('#mode2d').onclick=()=>{is3D=false;camera.position.set(0,0,12);camera.lookAt(0,0,0);camera.up.set(0,1,0);camera.fov=42;camera.updateProjectionMatrix();document.querySelector('#mode2d').classList.add('active');document.querySelector('#mode3d').classList.remove('active');document.querySelector('#modeLabel').textContent='PAPER CANVAS · FRONT VIEW';grid.visible=true;};
 document.querySelector('#mode3d').onclick=()=>{is3D=true;camera.position.set(9,7,12);camera.lookAt(0,0,0);camera.updateProjectionMatrix();document.querySelector('#mode3d').classList.add('active');document.querySelector('#mode2d').classList.remove('active');document.querySelector('#modeLabel').textContent='POP-UP SPACE · ORBIT VIEW';grid.visible=true;setTool('orbit');};
 document.querySelector('#addLayer').onclick=()=>addLayer();document.querySelector('#newBtn').onclick=()=>addLayer();
 document.querySelector('#brushSize').oninput=e=>{brushSize=+e.target.value;document.querySelector('#sizeVal').textContent=brushSize+' px';};
 document.querySelector('#opacity').oninput=e=>opacity=+e.target.value/100;
-document.querySelectorAll('.swatch').forEach(b=>b.onclick=()=>color=b.dataset.color);
+document.querySelectorAll('.swatch').forEach((b,i)=>{if(i===0)b.classList.add('selected');b.onclick=()=>{color=b.dataset.color;document.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('selected',s===b));document.querySelector('#brushCursor').style.setProperty('--cursor-color',color);};});
+const brushCursor=document.querySelector('#brushCursor');
+viewport.addEventListener('pointermove',e=>{if(e.pointerType==='touch'||tool!=='draw'){brushCursor.style.display='none';return;}const r=viewport.getBoundingClientRect();brushCursor.style.display='block';brushCursor.style.left=(e.clientX-r.left)+'px';brushCursor.style.top=(e.clientY-r.top)+'px';brushCursor.style.width=brushCursor.style.height=Math.max(12,brushSize*2)+'px';});
+viewport.addEventListener('pointerleave',()=>brushCursor.style.display='none');
+function comicPop(x,y,label='NICE!'){const el=document.createElement('div');el.className='comic-pop';el.textContent=label;el.style.left=x+'px';el.style.top=y+'px';document.body.append(el);setTimeout(()=>el.remove(),650);}
+document.querySelectorAll('.top-actions button,.bottom button,.rail button').forEach(btn=>btn.addEventListener('click',()=>{const r=btn.getBoundingClientRect();const labels={'saveBtn':'SAVED!','exportBtn':'INK IT!','addLayer':'NEW PAGE!','newBtn':'NEW PAGE!','clearBtn':'FRESH SHEET!','keyBtn':'SNAP!','playBtn':'ACTION!','mode3d':'POP OUT!','mode2d':'FLAT!'};const label=labels[btn.id];if(label)comicPop(r.left+r.width/2,r.top+r.height/2,label);}));
 document.querySelector('#clearBtn').onclick=()=>{snapshot();layers[activeLayer].group.clear();transform.detach();};
 document.querySelector('#undoBtn').onclick=()=>{if(!undoStack.length)return;redoStack.push(root.toJSON());restore(undoStack.pop());};
 document.querySelector('#redoBtn').onclick=()=>{if(!redoStack.length)return;undoStack.push(root.toJSON());restore(redoStack.pop());};
