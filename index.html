@@ -146,6 +146,9 @@ button.active{animation:stamp .24s ease-out}
 <label class="control">Brush size <input id="brushSize" type="range" min="1" max="36" value="6"></label>
 <label class="control">Eraser radius <small id="eraserSizeVal">6 px</small><input id="eraserSize" type="range" min="1" max="36" value="6"></label>
 <label class="control">Opacity<input id="opacity" type="range" min="10" max="100" value="100"></label>
+<label class="control">Contact sensitivity <small id="contactSensitivityVal">100%</small><input id="contactSensitivity" type="range" min="0" max="200" value="100"></label>
+<label class="control">Angle sensitivity <small id="angleSensitivityVal">100%</small><input id="angleSensitivity" type="range" min="0" max="200" value="100"></label>
+<label class="control">End taper <small id="taperVal">35%</small><input id="taper" type="range" min="0" max="100" value="35"></label>
 <div class="swatches" id="swatches"><button class="swatch" data-color="#d9f78a" style="background:#d9f78a"></button><button class="swatch" data-color="#ff9473" style="background:#ff9473"></button><button class="swatch" data-color="#8bd9ff" style="background:#8bd9ff"></button><button class="swatch" data-color="#f1eee4" style="background:#f1eee4"></button><button class="swatch" data-color="#c49aff" style="background:#c49aff"></button></div></div>
 <div><div class="section-head">Animation <small>keyframes</small></div><button id="keyBtn" style="width:100%">＋ Add keyframe</button><button id="playBtn" style="width:100%;margin-top:7px">▶ Play preview</button><div class="sub" id="frameInfo" style="margin-top:7px">0 keyframes · 12 FPS</div></div>
 </aside></main>
@@ -178,7 +181,7 @@ const root=new THREE.Group();scene.add(root);
 const testCube=new THREE.Group();const cubeMesh=new THREE.Mesh(new THREE.BoxGeometry(2,2,2),new THREE.MeshStandardMaterial({color:0xff765e,roughness:.48,metalness:.05}));const cubeEdges=new THREE.LineSegments(new THREE.EdgesGeometry(cubeMesh.geometry),new THREE.LineBasicMaterial({color:0x282321,linewidth:2}));testCube.add(cubeMesh,cubeEdges);testCube.visible=true;scene.add(testCube);
 const transform=new TransformControls(camera,renderer.domElement);scene.add(transform);transform.setMode('translate');let gizmoDragging=false;transform.addEventListener('dragging-changed',e=>{gizmoDragging=e.value;orbit.enabled=false;if(gizmoDragging){if(drawing)finishStroke(false);activePointers.clear();gestureState=null;mouseCamera=null;}});
 const orbit=new (await import('three/addons/controls/OrbitControls.js')).OrbitControls(camera,renderer.domElement);orbit.enableDamping=true;orbit.dampingFactor=.08;orbit.enableZoom=true;orbit.enablePan=true;orbit.enableRotate=true;orbit.minDistance=2.5;orbit.maxDistance=40;orbit.zoomSpeed=.9;orbit.panSpeed=.85;orbit.rotateSpeed=.75;orbit.target.set(0,0,0);orbit.enabled=false;
-let activeLayer=0,tool='draw',color='#d9f78a',brushSize=6,eraserRadiusPx=6,opacity=1,drawing=false,currentPoints=[],currentLine=null,undoStack=[],redoStack=[],keyframes=[],playing=false,playStart=0;
+let activeLayer=0,tool='draw',color='#d9f78a',brushSize=6,eraserRadiusPx=6,opacity=1,contactSensitivity=1,angleSensitivity=1,endTaper=.35,drawing=false,currentPoints=[],currentBrushSamples=[],currentLine=null,undoStack=[],redoStack=[],keyframes=[],playing=false,playStart=0;let latestTouchAngle=0;
 const layers=[];
 function addLayer(name='Layer '+(layers.length+1)){const group=new THREE.Group();group.name=name;root.add(group);layers.push({name,group,visible:true});activeLayer=layers.length-1;renderLayers();}
 addLayer('Starfish');addLayer('Details');activeLayer=0;
@@ -212,6 +215,14 @@ function pointFromEvent(e){
   return pointerRaycaster.ray.intersectPlane(strokePlane,point)?point:null;
 }
 function strokeMaterial(style={}){const strokeColor=style.color??color,strokeOpacity=style.opacity??opacity;return new THREE.MeshStandardMaterial({color:strokeColor,transparent:strokeOpacity<1,opacity:strokeOpacity,roughness:.82,metalness:0,depthWrite:strokeOpacity>=1,depthTest:true});}
+function readBrushContact(e){
+  const isStylus=e.pointerType==='pen',w=Math.max(1,Number(e.width)||1),h=Math.max(1,Number(e.height)||1);
+  const ratio=THREE.MathUtils.clamp(w/Math.max(w,h),.18,1);
+  const width=THREE.MathUtils.clamp(1+(1-ratio)*contactSensitivity,.2,2.4);
+  const height=THREE.MathUtils.clamp(1+(ratio-1)*contactSensitivity,.2,2.4);
+  const tiltX=isStylus?(Number(e.tiltX)||0)*Math.PI/180:0,tiltY=isStylus?(Number(e.tiltY)||0)*Math.PI/180:0;
+  return {width,height,angle:isStylus?Math.atan2(tiltY,tiltX):latestTouchAngle};
+}
 function makeSquareStroke(points,style={}){
   if(!points.length)return null;
   const strokeSize=style.size??brushSize,strokeColor=style.color??color,strokeOpacity=style.opacity??opacity;
@@ -221,17 +232,20 @@ function makeSquareStroke(points,style={}){
     dab.position.copy(points[0]);dab.userData.stroke=true;dab.userData.centerline=[points[0].toArray()];dab.userData.style={color:strokeColor,opacity:strokeOpacity,size:strokeSize};dab.renderOrder=++strokeRenderOrder;return dab;
   }
   const curve=new THREE.CatmullRomCurve3(points);
-  const segments=Math.max(8,points.length*3);
-  const frames=curve.computeFrenetFrames(segments,false);
-  const positions=[],indices=[];
+  const segments=Math.max(8,points.length*3),frames=curve.computeFrenetFrames(segments,false);
+  const samples=style.samples||[],positions=[],indices=[];
+  const sampleAt=t=>{
+    if(!samples.length)return {width:1,height:1,angle:0};
+    const q=t*(samples.length-1),i=Math.min(samples.length-1,Math.floor(q)),j=Math.min(samples.length-1,i+1),f=q-i,a=samples[i],b=samples[j];
+    return {width:THREE.MathUtils.lerp(a.width??1,b.width??1,f),height:THREE.MathUtils.lerp(a.height??1,b.height??1,f),angle:THREE.MathUtils.lerp(a.angle??0,b.angle??0,f)};
+  };
   for(let i=0;i<=segments;i++){
-    const t=i/segments,p=curve.getPointAt(t),n=frames.normals[i],b=frames.binormals[i];
-    positions.push(
-      p.x+radius*(n.x+b.x),p.y+radius*(n.y+b.y),p.z+radius*(n.z+b.z),
-      p.x+radius*(-n.x+b.x),p.y+radius*(-n.y+b.y),p.z+radius*(-n.z+b.z),
-      p.x+radius*(-n.x-b.x),p.y+radius*(-n.y-b.y),p.z+radius*(-n.z-b.z),
-      p.x+radius*(n.x-b.x),p.y+radius*(n.y-b.y),p.z+radius*(n.z-b.z)
-    );
+    const t=i/segments,p=curve.getPointAt(t),n=frames.normals[i],b=frames.binormals[i],sample=sampleAt(t);
+    const taper=Math.max(.035,Math.min(1,Math.min(endTaper>0?(.08+t/endTaper):1,endTaper>0?(.08+(1-t)/endTaper):1)));
+    const angle=sample.angle*angleSensitivity,ca=Math.cos(angle),sa=Math.sin(angle);
+    const axisA=n.clone().multiplyScalar(ca).addScaledVector(b,sa),axisB=b.clone().multiplyScalar(ca).addScaledVector(n,-sa);
+    const halfA=radius*Math.max(.12,sample.width)*taper,halfB=radius*Math.max(.12,sample.height)*taper;
+    for(const [u,v] of [[1,1],[-1,1],[-1,-1],[1,-1]]){const q=p.clone().addScaledVector(axisA,u*halfA).addScaledVector(axisB,v*halfB);positions.push(q.x,q.y,q.z);}
   }
   for(let i=0;i<segments;i++)for(let j=0;j<4;j++){
     const a=i*4+j,b=i*4+(j+1)%4,c=(i+1)*4+(j+1)%4,d=(i+1)*4+j;
@@ -245,10 +259,10 @@ function makeSquareStroke(points,style={}){
   geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
   geometry.setIndex(indices);geometry.computeVertexNormals();
   const material=strokeMaterial({color:strokeColor,opacity:strokeOpacity});material.flatShading=true;material.side=THREE.DoubleSide;material.needsUpdate=true;
-  const mesh=new THREE.Mesh(geometry,material);mesh.userData.stroke=true;mesh.userData.centerline=points.map(p=>p.toArray());mesh.userData.style={color:strokeColor,opacity:strokeOpacity,size:strokeSize};mesh.renderOrder=++strokeRenderOrder;return mesh;
+  const mesh=new THREE.Mesh(geometry,material);mesh.userData.stroke=true;mesh.userData.centerline=points.map(p=>p.toArray());mesh.userData.style={color:strokeColor,opacity:strokeOpacity,size:strokeSize};mesh.userData.brushSamples=samples;mesh.renderOrder=++strokeRenderOrder;return mesh;
 }
 function makeStroke(points){
-  const mesh=makeSquareStroke(points,{color,opacity,size:brushSize});if(mesh){const group=layers[activeLayer].group;group.add(mesh);recordAction({type:'add',group,object:mesh});}
+  const mesh=makeSquareStroke(points,{color,opacity,size:brushSize,samples:currentBrushSamples});if(mesh){const group=layers[activeLayer].group;group.add(mesh);recordAction({type:'add',group,object:mesh});}
 }
 function pointSegmentDistanceSq(p,a,b){const ab=b.clone().sub(a),den=ab.lengthSq();if(den<1e-10)return p.distanceToSquared(a);const t=THREE.MathUtils.clamp(p.clone().sub(a).dot(ab)/den,0,1);return p.distanceToSquared(a.add(ab.multiplyScalar(t)));}
 function projectErasePoint(point){
@@ -350,7 +364,7 @@ function updateStrokePreview(){
   const stride=Math.max(1,Math.ceil(currentPoints.length/220));
   const previewPoints=currentPoints.filter((_,i)=>i%stride===0);
   if(previewPoints[previewPoints.length-1]!==currentPoints[currentPoints.length-1])previewPoints.push(currentPoints[currentPoints.length-1]);
-  currentLine=makeSquareStroke(previewPoints);if(currentLine)layers[activeLayer].group.add(currentLine);
+  const previewSamples=currentBrushSamples.filter((_,i)=>i%stride===0);if(previewSamples[previewSamples.length-1]!==currentBrushSamples[currentBrushSamples.length-1])previewSamples.push(currentBrushSamples[currentBrushSamples.length-1]);currentLine=makeSquareStroke(previewPoints,{samples:previewSamples});if(currentLine)layers[activeLayer].group.add(currentLine);
 }
 function scheduleStrokePreview(){if(previewFrame)return;previewFrame=requestAnimationFrame(()=>{previewFrame=0;if(!drawing)return;if(activeStrokeTool==='erase')updateEraserPreview();else updateStrokePreview();});}
 function clearPreview(){if(previewFrame){cancelAnimationFrame(previewFrame);previewFrame=0;}if(currentLine){layers[activeLayer].group.remove(currentLine);currentLine.geometry.dispose();currentLine.material.dispose();currentLine=null;}clearEraserPreview();clearEraserInk();eraserScreenPoints=[];}
@@ -369,7 +383,7 @@ function finishStroke(commit=true){
     }
   }else clearPreview();
   clearEraserInk();eraserScreenPoints=[];
-  currentPoints=[];
+  currentPoints=[];currentBrushSamples=[];
   activeStrokeTool=null;
   activeStrokeGroup=null;
 }
@@ -399,6 +413,8 @@ function beginTwoFingerGesture(){
   gestureState={x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2,
     distance:Math.hypot(pts[1].x-pts[0].x,pts[1].y-pts[0].y)};
 }
+viewport.addEventListener('touchstart',e=>{if(e.touches.length===1&&Number.isFinite(e.touches[0].rotationAngle))latestTouchAngle=e.touches[0].rotationAngle*Math.PI/180;},{passive:true});
+viewport.addEventListener('touchmove',e=>{if(e.touches.length===1&&Number.isFinite(e.touches[0].rotationAngle))latestTouchAngle=e.touches[0].rotationAngle*Math.PI/180;},{passive:true});
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
 canvas.addEventListener('wheel',e=>{e.preventDefault();zoomBy(e.deltaY>0?1.08:.92);},{passive:false});
 canvas.addEventListener('pointerdown',e=>{
@@ -414,7 +430,7 @@ canvas.addEventListener('pointerdown',e=>{
   }else if((tool!=='draw'&&tool!=='erase')||transform.dragging||gizmoDragging)return;
   prepareStrokePlane();
   const point=pointFromEvent(e);if(!point)return;
-  drawing=true;activeStrokeTool=tool;activeStrokeGroup=layers[activeLayer].group;currentPoints=[point];if(activeStrokeTool==='erase'){eraserScreenPoints=[];addEraserScreenPoint(e);updateEraserPreview();}else updateStrokePreview();
+  drawing=true;activeStrokeTool=tool;activeStrokeGroup=layers[activeLayer].group;currentPoints=[point];currentBrushSamples=[readBrushContact(e)];if(activeStrokeTool==='erase'){eraserScreenPoints=[];addEraserScreenPoint(e);updateEraserPreview();}else updateStrokePreview();
 });
 canvas.addEventListener('pointermove',e=>{
   if(e.pointerType==='touch'&&activePointers.has(e.pointerId)){
@@ -438,7 +454,7 @@ canvas.addEventListener('pointermove',e=>{
   if(!drawing||gizmoDragging)return;
   const point=pointFromEvent(e);if(!point)return;
   if(currentPoints[currentPoints.length-1].distanceTo(point)>Math.max(.018,brushSize*.0025)){
-    currentPoints.push(point);if(activeStrokeTool==='erase')addEraserScreenPoint(e);
+    currentPoints.push(point);if(activeStrokeTool==='draw')currentBrushSamples.push(readBrushContact(e));if(activeStrokeTool==='erase')addEraserScreenPoint(e);
     if(currentPoints.length>700){const compact=currentPoints.filter((_,i)=>i%2===0);if(compact[compact.length-1]!==currentPoints[currentPoints.length-1])compact.push(currentPoints[currentPoints.length-1]);currentPoints=compact;}
     scheduleStrokePreview();
   }
@@ -474,6 +490,9 @@ document.querySelector('#addLayer').onclick=()=>addLayer();document.querySelecto
 document.querySelector('#brushSize').oninput=e=>{brushSize=+e.target.value;document.querySelector('#sizeVal').textContent=brushSize+' px';};
 document.querySelector('#eraserSize').oninput=e=>{eraserRadiusPx=+e.target.value;document.querySelector('#eraserSizeVal').textContent=eraserRadiusPx+' px';if(drawing&&activeStrokeTool==='erase')scheduleStrokePreview();};
 document.querySelector('#opacity').oninput=e=>opacity=+e.target.value/100;
+document.querySelector('#contactSensitivity').oninput=e=>{contactSensitivity=+e.target.value/100;document.querySelector('#contactSensitivityVal').textContent=e.target.value+'%';};
+document.querySelector('#angleSensitivity').oninput=e=>{angleSensitivity=+e.target.value/100;document.querySelector('#angleSensitivityVal').textContent=e.target.value+'%';};
+document.querySelector('#taper').oninput=e=>{endTaper=+e.target.value/100;document.querySelector('#taperVal').textContent=e.target.value+'%';};
 document.querySelectorAll('.swatch').forEach((b,i)=>{if(i===0)b.classList.add('selected');b.onclick=()=>{color=b.dataset.color;document.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('selected',s===b));document.querySelector('#brushCursor').style.setProperty('--cursor-color',color);};});
 const brushCursor=document.querySelector('#brushCursor');
 viewport.addEventListener('pointermove',e=>{if(e.pointerType==='touch'||(tool!=='draw'&&tool!=='erase')){brushCursor.style.display='none';return;}const r=viewport.getBoundingClientRect();brushCursor.style.display='block';brushCursor.style.left=(e.clientX-r.left)+'px';brushCursor.style.top=(e.clientY-r.top)+'px';const diameter=Math.max(2,(tool==='erase'?eraserRadiusPx:brushSize)*2);brushCursor.style.width=brushCursor.style.height=diameter+'px';brushCursor.style.borderRadius=tool==='erase'?'3px':'50%';brushCursor.style.setProperty('--cursor-color',tool==='erase'?'#ff684d':color);});
