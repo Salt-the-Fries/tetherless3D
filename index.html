@@ -174,7 +174,7 @@ const ambient=new THREE.HemisphereLight(0xffffff,0x555566,2);scene.add(ambient);
 const grid=new THREE.GridHelper(20,20,0x59604e,0x343a32);grid.position.y=-2.5;scene.add(grid);
 const root=new THREE.Group();scene.add(root);
 const testCube=new THREE.Group();const cubeMesh=new THREE.Mesh(new THREE.BoxGeometry(2,2,2),new THREE.MeshStandardMaterial({color:0xff765e,roughness:.48,metalness:.05}));const cubeEdges=new THREE.LineSegments(new THREE.EdgesGeometry(cubeMesh.geometry),new THREE.LineBasicMaterial({color:0x282321,linewidth:2}));testCube.add(cubeMesh,cubeEdges);testCube.visible=true;scene.add(testCube);
-const transform=new TransformControls(camera,renderer.domElement);scene.add(transform);transform.setMode('translate');transform.addEventListener('dragging-changed',e=>{orbit.enabled=!e.value;});
+const transform=new TransformControls(camera,renderer.domElement);scene.add(transform);transform.setMode('translate');let gizmoDragging=false;transform.addEventListener('dragging-changed',e=>{gizmoDragging=e.value;orbit.enabled=false;if(gizmoDragging){if(drawing)finishStroke(false);activePointers.clear();gestureState=null;mouseCamera=null;}});
 const orbit=new (await import('three/addons/controls/OrbitControls.js')).OrbitControls(camera,renderer.domElement);orbit.enableDamping=true;orbit.dampingFactor=.08;orbit.enableZoom=true;orbit.enablePan=true;orbit.enableRotate=true;orbit.minDistance=2.5;orbit.maxDistance=40;orbit.zoomSpeed=.9;orbit.panSpeed=.85;orbit.rotateSpeed=.75;orbit.target.set(0,0,0);orbit.enabled=false;
 let activeLayer=0,tool='draw',color='#d9f78a',brushSize=6,opacity=1,drawing=false,currentPoints=[],currentLine=null,undoStack=[],redoStack=[],keyframes=[],playing=false,playStart=0;
 const layers=[];
@@ -182,7 +182,7 @@ function addLayer(name='Layer '+(layers.length+1)){const group=new THREE.Group()
 addLayer('Starfish');addLayer('Details');activeLayer=0;
 function renderLayers(){const el=document.querySelector('#layers');el.innerHTML='';layers.forEach((l,i)=>{const row=document.createElement('div');row.className='layer'+(i===activeLayer?' active':'');row.innerHTML='<span class="dot"></span><span></span><button title="Visibility">◉</button>';row.children[1].textContent=l.name;row.addEventListener('click',e=>{if(e.target.tagName==='BUTTON'){l.visible=!l.visible;l.group.visible=l.visible;e.target.textContent=l.visible?'◉':'○';return;}activeLayer=i;renderLayers();if(tool==='select'&&l.group.children.length)transform.attach(l.group);});el.append(row);});}
 function snapshot(){undoStack.push(root.toJSON());if(undoStack.length>40)undoStack.shift();redoStack=[];}
-function restore(json){const parsed=new THREE.ObjectLoader().parse(json);root.clear();while(parsed.children.length)root.add(parsed.children[0]);}
+function restore(json){const parsed=new THREE.ObjectLoader().parse(json);root.clear();layers.length=0;while(parsed.children.length){const group=parsed.children[0];root.add(group);layers.push({name:group.name||('Layer '+(layers.length+1)),group,visible:group.visible});}activeLayer=THREE.MathUtils.clamp(activeLayer,0,Math.max(0,layers.length-1));transform.detach();renderLayers();}
 // First reliable brush pass: draw on the studio's horizontal XZ work plane.
 const drawingPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
 const pointerRaycaster=new THREE.Raycaster();
@@ -223,18 +223,23 @@ function makeSquareStroke(points){
   const geometry=new THREE.BufferGeometry();
   geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
   geometry.setIndex(indices);geometry.computeVertexNormals();
-  const flat=geometry.toNonIndexed();geometry.dispose();flat.computeVertexNormals();
-  const mesh=new THREE.Mesh(flat,strokeMaterial());mesh.userData.stroke=true;return mesh;
+  const material=strokeMaterial();material.flatShading=true;material.needsUpdate=true;
+  const mesh=new THREE.Mesh(geometry,material);mesh.userData.stroke=true;return mesh;
 }
 function makeStroke(points){
   const mesh=makeSquareStroke(points);if(mesh)layers[activeLayer].group.add(mesh);
 }
+let previewFrame=0;
 function updateStrokePreview(){
   if(currentLine){layers[activeLayer].group.remove(currentLine);currentLine.geometry.dispose();currentLine.material.dispose();currentLine=null;}
   if(currentPoints.length<2)return;
-  currentLine=makeSquareStroke(currentPoints);if(currentLine)layers[activeLayer].group.add(currentLine);
+  const stride=Math.max(1,Math.ceil(currentPoints.length/220));
+  const previewPoints=currentPoints.filter((_,i)=>i%stride===0);
+  if(previewPoints[previewPoints.length-1]!==currentPoints[currentPoints.length-1])previewPoints.push(currentPoints[currentPoints.length-1]);
+  currentLine=makeSquareStroke(previewPoints);if(currentLine)layers[activeLayer].group.add(currentLine);
 }
-function clearPreview(){if(currentLine){layers[activeLayer].group.remove(currentLine);currentLine.geometry.dispose();currentLine.material.dispose();currentLine=null;}}
+function scheduleStrokePreview(){if(previewFrame)return;previewFrame=requestAnimationFrame(()=>{previewFrame=0;if(drawing)updateStrokePreview();});}
+function clearPreview(){if(previewFrame){cancelAnimationFrame(previewFrame);previewFrame=0;}if(currentLine){layers[activeLayer].group.remove(currentLine);currentLine.geometry.dispose();currentLine.material.dispose();currentLine=null;}}
 function finishStroke(commit=true){
   if(!drawing)return;
   drawing=false;clearPreview();
@@ -275,11 +280,11 @@ canvas.addEventListener('pointerdown',e=>{
     try{canvas.setPointerCapture(e.pointerId);}catch{}
     if(activePointers.size===2){beginTwoFingerGesture();return;}
     if(activePointers.size>2)return;
-    if(tool!=='draw'||transform.dragging)return;
+    if(tool!=='draw'||transform.dragging||gizmoDragging)return;
   }else if(e.button===2||e.button===1){
     mouseCamera={id:e.pointerId,x:e.clientX,y:e.clientY,pan:e.button===1||e.shiftKey};
     try{canvas.setPointerCapture(e.pointerId);}catch{}return;
-  }else if(tool!=='draw'||transform.dragging)return;
+  }else if(tool!=='draw'||transform.dragging||gizmoDragging)return;
   const point=pointFromEvent(e);if(!point)return;
   drawing=true;currentPoints=[point];updateStrokePreview();
 });
@@ -302,10 +307,12 @@ canvas.addEventListener('pointermove',e=>{
     if(mouseCamera.pan)cameraPan(dx,dy);else cameraOrbit(dx,dy);
     mouseCamera.x=e.clientX;mouseCamera.y=e.clientY;return;
   }
-  if(!drawing)return;
+  if(!drawing||gizmoDragging)return;
   const point=pointFromEvent(e);if(!point)return;
-  if(currentPoints[currentPoints.length-1].distanceTo(point)>.018){
-    currentPoints.push(point);updateStrokePreview();
+  if(currentPoints[currentPoints.length-1].distanceTo(point)>Math.max(.018,brushSize*.0025)){
+    currentPoints.push(point);
+    if(currentPoints.length>700){const compact=currentPoints.filter((_,i)=>i%2===0);if(compact[compact.length-1]!==currentPoints[currentPoints.length-1])compact.push(currentPoints[currentPoints.length-1]);currentPoints=compact;}
+    scheduleStrokePreview();
   }
 });
 function endPointer(e){
@@ -318,8 +325,19 @@ function endPointer(e){
   if(drawing)finishStroke(true);
 }
 canvas.addEventListener('pointerup',endPointer);
-canvas.addEventListener('pointercancel',e=>{if(activePointers.has(e.pointerId)){activePointers.delete(e.pointerId);gestureState=null;}else finishStroke(false);});
-canvas.addEventListener('lostpointercapture',e=>{if(activePointers.has(e.pointerId)){activePointers.delete(e.pointerId);gestureState=null;}else if(drawing)finishStroke(false);});
+function cancelPointer(e){
+  if(activePointers.has(e.pointerId)){
+    activePointers.delete(e.pointerId);gestureState=null;
+    if(drawing)finishStroke(false);
+    if(activePointers.size===0)currentPoints=[];
+  }
+  if(mouseCamera&&mouseCamera.id===e.pointerId)mouseCamera=null;
+  if(drawing&&!activePointers.size&&!mouseCamera)finishStroke(false);
+}
+canvas.addEventListener('pointercancel',cancelPointer);
+canvas.addEventListener('lostpointercapture',cancelPointer);
+window.addEventListener('blur',()=>{activePointers.clear();gestureState=null;mouseCamera=null;if(drawing)finishStroke(false);});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){activePointers.clear();gestureState=null;mouseCamera=null;if(drawing)finishStroke(false);}});
 function setTool(t){tool=t;document.querySelectorAll('.rail .tool').forEach(b=>b.classList.remove('active'));({draw:'#drawTool',select:'#selectTool',orbit:'#orbitTool'}[t]&&document.querySelector(({draw:'#drawTool',select:'#selectTool',orbit:'#orbitTool'}[t])).classList.add('active'));if(t==='draw'){transform.detach();orbit.enabled=false;}if(t==='select'){orbit.enabled=false;const g=layers[activeLayer].group;if(g.children.length)transform.attach(g);}if(t==='orbit'){transform.detach();orbit.enabled=true;orbit.enableRotate=true;orbit.enablePan=true;orbit.enableZoom=true;}canvas.style.cursor=t==='draw'?'none':'grab';brushCursor.style.display='none';document.querySelector('#hint').textContent=t==='orbit'?('Right-drag to orbit · Shift/right-drag or middle-drag to pan · Wheel to zoom'):'One finger draws · Two fingers orbit + pinch to zoom · Right-drag orbits on desktop';}
 document.querySelector('#drawTool').onclick=()=>setTool('draw');document.querySelector('#selectTool').onclick=()=>setTool(tool==='select'?'draw':'select');
 function resetCamera(){orbit.target.set(0,0,0);camera.up.set(0,1,0);camera.position.set(9,7,12);camera.lookAt(0,0,0);camera.fov=42;camera.updateProjectionMatrix();orbit.update();}
