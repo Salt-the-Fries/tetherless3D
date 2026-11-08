@@ -263,13 +263,13 @@ function computeEraserResult(path,group){
     if(run.length)keep.push(run);
     if(keep.length===1&&keep[0].length===samples.length)continue;
     removed.push(object);
-    for(const segment of keep){if(segment.length<2&&samples.length>1)continue;const replacement=makeSquareStroke(segment,object.userData.style||{});if(replacement){replacement.renderOrder=object.renderOrder;group.add(replacement);added.push(replacement);}}
+    for(const segment of keep){if(segment.length<2&&samples.length>1)continue;const replacement=makeSquareStroke(segment,object.userData.style||{});if(replacement){replacement.renderOrder=object.renderOrder;added.push(replacement);}}
   }
   return {removed,added};
 }
 let eraserPreview=null;
 function clearEraserPreview(){if(!eraserPreview)return;for(const object of eraserPreview.added){eraserPreview.group.remove(object);object.geometry?.dispose();object.material?.dispose();}for(const object of eraserPreview.removed)object.visible=true;eraserPreview=null;}
-function updateEraserPreview(){clearEraserPreview();if(currentPoints.length<1)return;const group=layers[activeLayer].group;const result=computeEraserResult(currentPoints,group);if(!result.removed.length)return;for(const object of result.removed)object.visible=false;eraserPreview={group,...result};for(const object of result.added)group.add(object);}
+function updateEraserPreview(){clearEraserPreview();if(currentPoints.length<1)return;const group=layers[activeLayer].group;const result=computeEraserResult(currentPoints,group);if(!result.removed.length)return;for(const object of result.removed)object.visible=false;for(const object of result.added)group.add(object);eraserPreview={group,...result};}
 function commitEraserPreview(){if(!eraserPreview)return;const {group,removed,added}=eraserPreview;for(const object of removed){object.visible=true;group.remove(object);}recordAction({type:'replace',group,removed,added});eraserPreview=null;}
 let previewFrame=0,strokeRenderOrder=10;
 function updateStrokePreview(){
@@ -284,8 +284,17 @@ function scheduleStrokePreview(){if(previewFrame)return;previewFrame=requestAnim
 function clearPreview(){if(previewFrame){cancelAnimationFrame(previewFrame);previewFrame=0;}if(currentLine){layers[activeLayer].group.remove(currentLine);currentLine.geometry.dispose();currentLine.material.dispose();currentLine=null;}clearEraserPreview();}
 function finishStroke(commit=true){
   if(!drawing)return;
-  drawing=false;clearPreview();
-  if(commit&&currentPoints.length){if(tool==='erase'){updateEraserPreview();commitEraserPreview();}else makeStroke(currentPoints);}
+  drawing=false;
+  if(commit&&currentPoints.length){
+    if(tool==='erase'){
+      // Recalculate once with the complete pointer path, then commit that exact preview.
+      updateEraserPreview();
+      commitEraserPreview();
+    }else{
+      clearPreview();
+      makeStroke(currentPoints);
+    }
+  }else clearPreview();
   currentPoints=[];
 }
 // One finger draws. Two fingers take over for camera orbit and pinch zoom.
@@ -329,7 +338,7 @@ canvas.addEventListener('pointerdown',e=>{
   }else if((tool!=='draw'&&tool!=='erase')||transform.dragging||gizmoDragging)return;
   prepareStrokePlane();
   const point=pointFromEvent(e);if(!point)return;
-  drawing=true;currentPoints=[point];updateStrokePreview();
+  drawing=true;currentPoints=[point];if(tool==='erase')updateEraserPreview();else updateStrokePreview();
 });
 canvas.addEventListener('pointermove',e=>{
   if(e.pointerType==='touch'&&activePointers.has(e.pointerId)){
