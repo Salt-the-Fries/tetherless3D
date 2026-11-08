@@ -137,7 +137,7 @@ button.active{animation:stamp .24s ease-out}
 <div class="app">
 <header class="top"><div><div class="brand">TETHERLESS<span>3D</span></div><div class="sub">CUT PAPER · INK · IMAGINATION</div></div><div class="top-actions"><button id="panelBtn" class="mobile-panels">☷</button><button id="saveBtn">Save</button></div></header>
 <main class="workspace"><nav class="rail">
-<button class="tool active" id="drawTool" title="Draw">✎</button><button class="tool" id="selectTool" title="Select / transform">↗</button><button class="tool" id="undoBtn" title="Undo">↶</button><button class="tool" id="redoBtn" title="Redo">↷</button>
+<button class="tool active" id="drawTool" title="Draw">✎</button><button class="tool" id="eraseTool" title="Eraser">⌫</button><button class="tool" id="selectTool" title="Select / transform">↗</button><button class="tool" id="undoBtn" title="Undo">↶</button><button class="tool" id="redoBtn" title="Redo">↷</button>
 </nav><section class="viewport"><canvas id="stage"></canvas><div id="brushCursor"></div><div class="mode-pill" id="modeLabel">3D DRAWING SPACE</div><div class="camera-dock" aria-label="Camera controls"><button id="zoomOut" title="Zoom out">−</button><button id="zoomIn" title="Zoom in">＋</button><button id="cameraReset" title="Reset camera">⌂</button></div><div class="hint" id="hint">One finger draws on the view plane · Rotate the camera to change drawing direction · Two fingers orbit + pinch to zoom</div><div id="engineError" role="status" style="display:none;position:absolute;z-index:20;left:12px;right:12px;top:64px;padding:12px;background:#fff0e8;border:2px solid #9d3022;color:#6b2018;font-weight:800;white-space:pre-wrap">3D engine error</div></section>
 <aside class="side" id="side">
 <div><div class="section-head">Layers <button id="addLayer">＋</button></div><div id="layers"></div></div>
@@ -183,8 +183,8 @@ addLayer('Starfish');addLayer('Details');activeLayer=0;
 function renderLayers(){const el=document.querySelector('#layers');el.innerHTML='';layers.forEach((l,i)=>{const row=document.createElement('div');row.className='layer'+(i===activeLayer?' active':'');row.innerHTML='<span class="dot"></span><span></span><button title="Visibility">◉</button>';row.children[1].textContent=l.name;row.addEventListener('click',e=>{if(e.target.tagName==='BUTTON'){l.visible=!l.visible;l.group.visible=l.visible;e.target.textContent=l.visible?'◉':'○';return;}activeLayer=i;renderLayers();if(tool==='select'&&l.group.children.length)transform.attach(l.group);});el.append(row);});}
 // History stores object references, never full serialized copies of the entire scene.
 function recordAction(action){undoStack.push(action);if(undoStack.length>500)undoStack.shift();redoStack=[];}
-function undoAction(){const action=undoStack.pop();if(!action)return;if(action.type==='add'){action.group.remove(action.object);}else if(action.type==='clear'){for(const object of action.objects)action.group.add(object);}redoStack.push(action);}
-function redoAction(){const action=redoStack.pop();if(!action)return;if(action.type==='add'){action.group.add(action.object);}else if(action.type==='clear'){for(const object of action.objects)action.group.remove(object);}undoStack.push(action);}
+function undoAction(){const action=undoStack.pop();if(!action)return;if(action.type==='add'){action.group.remove(action.object);}else if(action.type==='clear'){for(const object of action.objects)action.group.add(object);}else if(action.type==='replace'){for(const object of action.added)action.group.remove(object);for(const object of action.removed)action.group.add(object);}redoStack.push(action);}
+function redoAction(){const action=redoStack.pop();if(!action)return;if(action.type==='add'){action.group.add(action.object);}else if(action.type==='clear'){for(const object of action.objects)action.group.remove(object);}else if(action.type==='replace'){for(const object of action.removed)action.group.remove(object);for(const object of action.added)action.group.add(object);}undoStack.push(action);}
 // Each stroke lives on a camera-facing plane through the current 3D orbit target.
 // Rotating the camera changes the plane, so strokes can be drawn in any view direction.
 const strokePlane=new THREE.Plane();
@@ -209,13 +209,14 @@ function pointFromEvent(e){
   const point=new THREE.Vector3();
   return pointerRaycaster.ray.intersectPlane(strokePlane,point)?point:null;
 }
-function strokeMaterial(){return new THREE.MeshStandardMaterial({color,transparent:opacity<1,opacity,roughness:.82,metalness:0,depthWrite:opacity>=1,depthTest:true});}
-function makeSquareStroke(points){
+function strokeMaterial(style={}){const strokeColor=style.color??color,strokeOpacity=style.opacity??opacity;return new THREE.MeshStandardMaterial({color:strokeColor,transparent:strokeOpacity<1,opacity:strokeOpacity,roughness:.82,metalness:0,depthWrite:strokeOpacity>=1,depthTest:true});}
+function makeSquareStroke(points,style={}){
   if(!points.length)return null;
-  const radius=Math.max(.012,brushSize*.008);
+  const strokeSize=style.size??brushSize,strokeColor=style.color??color,strokeOpacity=style.opacity??opacity;
+  const radius=Math.max(.012,strokeSize*.008);
   if(points.length===1){
-    const dab=new THREE.Mesh(new THREE.BoxGeometry(radius*2,radius*2,radius*2),strokeMaterial());
-    dab.position.copy(points[0]);dab.userData.stroke=true;dab.renderOrder=++strokeRenderOrder;return dab;
+    const dab=new THREE.Mesh(new THREE.BoxGeometry(radius*2,radius*2,radius*2),strokeMaterial({color:strokeColor,opacity:strokeOpacity}));
+    dab.position.copy(points[0]);dab.userData.stroke=true;dab.userData.centerline=[points[0].toArray()];dab.userData.style={color:strokeColor,opacity:strokeOpacity,size:strokeSize};dab.renderOrder=++strokeRenderOrder;return dab;
   }
   const curve=new THREE.CatmullRomCurve3(points);
   const segments=Math.max(8,points.length*3);
@@ -237,11 +238,31 @@ function makeSquareStroke(points){
   const geometry=new THREE.BufferGeometry();
   geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
   geometry.setIndex(indices);geometry.computeVertexNormals();
-  const material=strokeMaterial();material.flatShading=true;material.needsUpdate=true;
-  const mesh=new THREE.Mesh(geometry,material);mesh.userData.stroke=true;mesh.renderOrder=++strokeRenderOrder;return mesh;
+  const material=strokeMaterial({color:strokeColor,opacity:strokeOpacity});material.flatShading=true;material.needsUpdate=true;
+  const mesh=new THREE.Mesh(geometry,material);mesh.userData.stroke=true;mesh.userData.centerline=points.map(p=>p.toArray());mesh.userData.style={color:strokeColor,opacity:strokeOpacity,size:strokeSize};mesh.renderOrder=++strokeRenderOrder;return mesh;
 }
 function makeStroke(points){
-  const mesh=makeSquareStroke(points);if(mesh){const group=layers[activeLayer].group;group.add(mesh);recordAction({type:'add',group,object:mesh});}
+  const mesh=makeSquareStroke(points,{color,opacity,size:brushSize});if(mesh){const group=layers[activeLayer].group;group.add(mesh);recordAction({type:'add',group,object:mesh});}
+}
+function pointSegmentDistanceSq(p,a,b){const ab=b.clone().sub(a),den=ab.lengthSq();if(den<1e-10)return p.distanceToSquared(a);const t=THREE.MathUtils.clamp(p.clone().sub(a).dot(ab)/den,0,1);return p.distanceToSquared(a.add(ab.multiplyScalar(t)));}
+function distanceToErasePathSq(point,path){if(path.length===1)return point.distanceToSquared(path[0]);let best=Infinity;for(let i=1;i<path.length;i++)best=Math.min(best,pointSegmentDistanceSq(point,path[i-1],path[i]));return best;}
+function applyEraser(path){
+  if(!path.length)return;const group=layers[activeLayer].group,removed=[],added=[];
+  const eraseRadius=Math.max(.025,brushSize*.012);
+  for(const object of [...group.children]){if(!object.userData.stroke||!object.userData.centerline)continue;
+    const source=object.userData.centerline.map(p=>new THREE.Vector3(...p));if(!source.length)continue;
+    const curve=source.length>2?new THREE.CatmullRomCurve3(source):null;
+    const samples=curve?curve.getPoints(Math.max(12,source.length*5)):source;
+    const strokeRadius=Math.max(.012,(object.userData.style?.size??brushSize)*.008);
+    const keep=[];let run=[];
+    for(const p of samples){const hit=distanceToErasePathSq(p,path)<=Math.pow(eraseRadius+strokeRadius,2);if(hit){if(run.length)keep.push(run);run=[];}else run.push(p);}
+    if(run.length)keep.push(run);
+    if(keep.length===1&&keep[0].length===samples.length)continue;
+    removed.push(object);
+    for(const segment of keep){if(segment.length<2&&samples.length>1)continue;const replacement=makeSquareStroke(segment,object.userData.style||{});if(replacement){replacement.renderOrder=object.renderOrder;group.add(replacement);added.push(replacement);}}
+    group.remove(object);
+  }
+  if(removed.length)recordAction({type:'replace',group,removed,added});
 }
 let previewFrame=0,strokeRenderOrder=10;
 function updateStrokePreview(){
@@ -257,7 +278,7 @@ function clearPreview(){if(previewFrame){cancelAnimationFrame(previewFrame);prev
 function finishStroke(commit=true){
   if(!drawing)return;
   drawing=false;clearPreview();
-  if(commit&&currentPoints.length)makeStroke(currentPoints);
+  if(commit&&currentPoints.length){if(tool==='erase')applyEraser(currentPoints);else makeStroke(currentPoints);}
   currentPoints=[];
 }
 // One finger draws. Two fingers take over for camera orbit and pinch zoom.
@@ -294,11 +315,11 @@ canvas.addEventListener('pointerdown',e=>{
     try{canvas.setPointerCapture(e.pointerId);}catch{}
     if(activePointers.size===2){beginTwoFingerGesture();return;}
     if(activePointers.size>2)return;
-    if(tool!=='draw'||transform.dragging||gizmoDragging)return;
+    if((tool!=='draw'&&tool!=='erase')||transform.dragging||gizmoDragging)return;
   }else if(e.button===2||e.button===1){
     mouseCamera={id:e.pointerId,x:e.clientX,y:e.clientY,pan:e.button===1||e.shiftKey};
     try{canvas.setPointerCapture(e.pointerId);}catch{}return;
-  }else if(tool!=='draw'||transform.dragging||gizmoDragging)return;
+  }else if((tool!=='draw'&&tool!=='erase')||transform.dragging||gizmoDragging)return;
   prepareStrokePlane();
   const point=pointFromEvent(e);if(!point)return;
   drawing=true;currentPoints=[point];updateStrokePreview();
@@ -353,8 +374,8 @@ canvas.addEventListener('pointercancel',cancelPointer);
 canvas.addEventListener('lostpointercapture',cancelPointer);
 window.addEventListener('blur',()=>{activePointers.clear();gestureState=null;mouseCamera=null;if(drawing)finishStroke(false);});
 document.addEventListener('visibilitychange',()=>{if(document.hidden){activePointers.clear();gestureState=null;mouseCamera=null;if(drawing)finishStroke(false);}});
-function setTool(t){tool=t;document.querySelectorAll('.rail .tool').forEach(b=>b.classList.remove('active'));({draw:'#drawTool',select:'#selectTool',orbit:'#orbitTool'}[t]&&document.querySelector(({draw:'#drawTool',select:'#selectTool',orbit:'#orbitTool'}[t])).classList.add('active'));if(t==='draw'){transform.detach();orbit.enabled=false;}if(t==='select'){orbit.enabled=false;const g=layers[activeLayer].group;if(g.children.length)transform.attach(g);}if(t==='orbit'){transform.detach();orbit.enabled=true;orbit.enableRotate=true;orbit.enablePan=true;orbit.enableZoom=true;}canvas.style.cursor=t==='draw'?'none':'grab';brushCursor.style.display='none';document.querySelector('#hint').textContent=t==='orbit'?('Right-drag to orbit · Shift/right-drag or middle-drag to pan · Wheel to zoom'):'One finger draws on the view plane · Rotate the camera to change drawing direction · Two fingers orbit + pinch to zoom';}
-document.querySelector('#drawTool').onclick=()=>setTool('draw');document.querySelector('#selectTool').onclick=()=>setTool(tool==='select'?'draw':'select');
+function setTool(t){tool=t;document.querySelectorAll('.rail .tool').forEach(b=>b.classList.remove('active'));({draw:'#drawTool',erase:'#eraseTool',select:'#selectTool',orbit:'#orbitTool'}[t]&&document.querySelector(({draw:'#drawTool',erase:'#eraseTool',select:'#selectTool',orbit:'#orbitTool'}[t])).classList.add('active'));if(t==='draw'||t==='erase'){transform.detach();orbit.enabled=false;}if(t==='select'){orbit.enabled=false;const g=layers[activeLayer].group;if(g.children.length)transform.attach(g);}if(t==='orbit'){transform.detach();orbit.enabled=true;orbit.enableRotate=true;orbit.enablePan=true;orbit.enableZoom=true;}canvas.style.cursor=t==='draw'?'none':t==='erase'?'crosshair':'grab';brushCursor.style.display='none';document.querySelector('#hint').textContent=t==='orbit'?('Right-drag to orbit · Shift/right-drag or middle-drag to pan · Wheel to zoom'):t==='erase'?'Erase parts of strokes on the active layer · Two fingers orbit + pinch to zoom':'One finger draws on the view plane · Rotate the camera to change drawing direction · Two fingers orbit + pinch to zoom';}
+document.querySelector('#drawTool').onclick=()=>setTool(tool==='draw'?'select':'draw');document.querySelector('#eraseTool').onclick=()=>setTool(tool==='erase'?'draw':'erase');document.querySelector('#selectTool').onclick=()=>setTool(tool==='select'?'draw':'select');
 function resetCamera(){orbit.target.set(0,0,0);camera.up.set(0,1,0);camera.position.set(9,7,12);camera.lookAt(0,0,0);camera.fov=42;camera.updateProjectionMatrix();orbit.update();}
 function cameraZoom(factor){const offset=camera.position.clone().sub(orbit.target);offset.multiplyScalar(factor);const distance=THREE.MathUtils.clamp(offset.length(),orbit.minDistance,orbit.maxDistance);offset.setLength(distance);camera.position.copy(orbit.target).add(offset);orbit.update();}document.querySelector('#zoomIn').onclick=()=>cameraZoom(.8);document.querySelector('#zoomOut').onclick=()=>cameraZoom(1.25);document.querySelector('#cameraReset').onclick=()=>{resetCamera();};
 document.querySelector('#addLayer').onclick=()=>addLayer();document.querySelector('#newBtn').onclick=()=>addLayer();
