@@ -64,6 +64,16 @@ button.active{animation:stamp .24s ease-out}
 #stage{z-index:1}
 #brushCursor{position:absolute;z-index:4;width:24px;height:24px;border:2px solid #282321;border-radius:50%;pointer-events:none;transform:translate(-50%,-50%);display:none;box-shadow:2px 2px 0 var(--orange),inset 0 0 0 3px #fff9e9aa;mix-blend-mode:multiply}
 #brushCursor:after{content:"";position:absolute;inset:7px;border-radius:50%;background:var(--cursor-color,var(--orange))}
+.contact-toggle{position:absolute;z-index:9;right:16px;top:14px;border:2px solid #282321;background:#fff4db;color:#282321;box-shadow:3px 4px 0 #282321;padding:8px 11px;font-weight:800}
+.contact-panel{position:absolute;z-index:10;right:16px;top:60px;width:min(260px,calc(100% - 32px));padding:13px;background:#fff4db;border:2px solid #282321;box-shadow:5px 6px 0 #282321;color:#282321;display:none;gap:11px}
+.contact-panel.open{display:grid;animation:contactPop .18s ease-out}
+@keyframes contactPop{from{opacity:0;transform:translateY(-7px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+.contact-preview-wrap{display:flex;align-items:center;justify-content:center;min-height:74px;background:#ead9b8;border:1px dashed #8a7658}
+#contactFootprint{width:34px;height:34px;border:2px solid #282321;border-radius:50%;background:#ff9b61aa;box-shadow:2px 2px 0 #282321;transform-origin:center}
+.contact-panel .control{color:#514333}.contact-panel input{accent-color:#e76c42}
+.contact-panel .panel-title{font-weight:900;display:flex;justify-content:space-between;align-items:center}
+@media(max-width:760px){.contact-toggle{top:56px;right:12px;padding:7px 9px}.contact-panel{top:101px;right:12px;width:min(245px,calc(100% - 24px))}}
+
 .comic-pop{position:fixed;z-index:30;pointer-events:none;font-size:13px;font-weight:1000;letter-spacing:1px;color:#282321;background:var(--lime);border:2px solid #282321;padding:5px 9px;box-shadow:3px 3px 0 #282321;transform:translate(-50%,-50%) rotate(-8deg);animation:comicPop .62s cubic-bezier(.18,.85,.25,1) forwards}
 @keyframes comicPop{0%{opacity:0;transform:translate(-50%,-35%) scale(.25) rotate(-20deg)}35%{opacity:1;transform:translate(-50%,-65%) scale(1.18) rotate(5deg)}70%{opacity:1;transform:translate(-50%,-95%) scale(.96) rotate(-3deg)}100%{opacity:0;transform:translate(-50%,-145%) scale(.8) rotate(7deg)}}
 @keyframes panelShuffle{0%{opacity:0;transform:translateX(24px) rotate(2deg)}70%{opacity:1;transform:translateX(-4px) rotate(-.5deg)}100%{transform:translateX(0) rotate(0)}}
@@ -139,7 +149,7 @@ button.active{animation:stamp .24s ease-out}
 <header class="top"><div><div class="brand">TETHERLESS<span>3D</span></div><div class="sub">CUT PAPER · INK · IMAGINATION</div></div><div class="top-actions"><button id="panelBtn" class="mobile-panels">☷</button><button id="saveBtn">Save</button></div></header>
 <main class="workspace"><nav class="rail">
 <button class="tool active" id="drawTool" title="Draw">✎</button><button class="tool" id="eraseTool" title="Eraser">⌫</button><button class="tool" id="selectTool" title="Select / transform">↗</button><button class="tool" id="undoBtn" title="Undo">↶</button><button class="tool" id="redoBtn" title="Redo">↷</button>
-</nav><section class="viewport"><canvas id="stage"></canvas><canvas id="eraserPreviewCanvas" aria-hidden="true"></canvas><div id="brushCursor"></div><div class="mode-pill" id="modeLabel">3D DRAWING SPACE</div><div class="camera-dock" aria-label="Camera controls"><button id="zoomOut" title="Zoom out">−</button><button id="zoomIn" title="Zoom in">＋</button><button id="cameraReset" title="Reset camera">⌂</button></div><div class="hint" id="hint">One finger draws on the view plane · Rotate the camera to change drawing direction · Two fingers orbit + pinch to zoom</div><div id="engineError" role="status" style="display:none;position:absolute;z-index:20;left:12px;right:12px;top:64px;padding:12px;background:#fff0e8;border:2px solid #9d3022;color:#6b2018;font-weight:800;white-space:pre-wrap">3D engine error</div></section>
+</nav><section class="viewport"><canvas id="stage"></canvas><canvas id="eraserPreviewCanvas" aria-hidden="true"></canvas><button class="contact-toggle" id="contactToggle" type="button">◎ Contact</button><div class="contact-panel" id="contactPanel"><div class="panel-title"><span>VIRTUAL FINGER</span><small id="contactReadout">Round · 100%</small></div><div class="contact-preview-wrap"><div id="contactFootprint"></div></div><label class="control">Contact size <small id="virtualSizeVal">100%</small><input id="virtualSize" type="range" min="25" max="250" value="100"></label><label class="control">Squish <small id="virtualSquishVal">0%</small><input id="virtualSquish" type="range" min="0" max="85" value="0"></label><label class="control">Angle <small id="virtualAngleVal">0°</small><input id="virtualAngle" type="range" min="-180" max="180" value="0"></label><small>Shapes the actual 3D brush cross-section. Independent of brush size.</small></div><div id="brushCursor"></div><div class="mode-pill" id="modeLabel">3D DRAWING SPACE</div><div class="camera-dock" aria-label="Camera controls"><button id="zoomOut" title="Zoom out">−</button><button id="zoomIn" title="Zoom in">＋</button><button id="cameraReset" title="Reset camera">⌂</button></div><div class="hint" id="hint">One finger draws on the view plane · Rotate the camera to change drawing direction · Two fingers orbit + pinch to zoom</div><div id="engineError" role="status" style="display:none;position:absolute;z-index:20;left:12px;right:12px;top:64px;padding:12px;background:#fff0e8;border:2px solid #9d3022;color:#6b2018;font-weight:800;white-space:pre-wrap">3D engine error</div></section>
 <aside class="side" id="side">
 <div><div class="section-head">Layers <button id="addLayer">＋</button></div><div id="layers"></div></div>
 <div><div class="section-head">Brush <small id="sizeVal">6 px</small></div>
@@ -181,7 +191,7 @@ const root=new THREE.Group();scene.add(root);
 const testCube=new THREE.Group();const cubeMesh=new THREE.Mesh(new THREE.BoxGeometry(2,2,2),new THREE.MeshStandardMaterial({color:0xff765e,roughness:.48,metalness:.05}));const cubeEdges=new THREE.LineSegments(new THREE.EdgesGeometry(cubeMesh.geometry),new THREE.LineBasicMaterial({color:0x282321,linewidth:2}));testCube.add(cubeMesh,cubeEdges);testCube.visible=true;scene.add(testCube);
 const transform=new TransformControls(camera,renderer.domElement);scene.add(transform);transform.setMode('translate');let gizmoDragging=false;transform.addEventListener('dragging-changed',e=>{gizmoDragging=e.value;orbit.enabled=false;if(gizmoDragging){if(drawing)finishStroke(false);activePointers.clear();gestureState=null;mouseCamera=null;}});
 const orbit=new (await import('three/addons/controls/OrbitControls.js')).OrbitControls(camera,renderer.domElement);orbit.enableDamping=true;orbit.dampingFactor=.08;orbit.enableZoom=true;orbit.enablePan=true;orbit.enableRotate=true;orbit.minDistance=2.5;orbit.maxDistance=40;orbit.zoomSpeed=.9;orbit.panSpeed=.85;orbit.rotateSpeed=.75;orbit.target.set(0,0,0);orbit.enabled=false;
-let activeLayer=0,tool='draw',color='#d9f78a',brushSize=6,eraserRadiusPx=6,opacity=1,contactSensitivity=1,angleSensitivity=1,endTaper=.35,drawing=false,currentPoints=[],currentBrushSamples=[],currentLine=null,undoStack=[],redoStack=[],keyframes=[],playing=false,playStart=0;let latestTouchAngle=0,latestTouchContact=null,primaryTouchIdentifier=null;
+let activeLayer=0,tool='draw',color='#d9f78a',brushSize=6,eraserRadiusPx=6,opacity=1,contactSensitivity=1,angleSensitivity=1,endTaper=.35,virtualContactScale=1,virtualSquish=0,virtualContactAngle=0,drawing=false,currentPoints=[],currentBrushSamples=[],currentLine=null,undoStack=[],redoStack=[],keyframes=[],playing=false,playStart=0;let latestTouchAngle=0,latestTouchContact=null,primaryTouchIdentifier=null;
 const layers=[];
 function addLayer(name='Layer '+(layers.length+1)){const group=new THREE.Group();group.name=name;root.add(group);layers.push({name,group,visible:true});activeLayer=layers.length-1;renderLayers();}
 addLayer('Starfish');addLayer('Details');activeLayer=0;
@@ -230,7 +240,7 @@ function readBrushContact(e){
   const height=THREE.MathUtils.clamp(contactScale*THREE.MathUtils.lerp(1,1/aspect,contactSensitivity)*stylusPressure,.2,2.8);
   const tiltX=isStylus?(Number(e.tiltX)||0)*Math.PI/180:0,tiltY=isStylus?(Number(e.tiltY)||0)*Math.PI/180:0;
   const touchAngle=touch&&Number.isFinite(touch.rotationAngle)?touch.rotationAngle*Math.PI/180:latestTouchAngle;
-  return {width,height,angle:isStylus?Math.atan2(tiltY,tiltX):touchAngle};
+  const squash=virtualSquish/100,virtualAspect=1-squash*.82;return {width:THREE.MathUtils.clamp(width*virtualContactScale/virtualAspect,.15,4),height:THREE.MathUtils.clamp(height*virtualContactScale*virtualAspect,.15,4),angle:(isStylus?Math.atan2(tiltY,tiltX):touchAngle)+virtualContactAngle*Math.PI/180};
 }
 function captureTouchContact(e){
   const list=Array.from(e.touches||[]);
@@ -514,6 +524,18 @@ document.querySelector('#opacity').oninput=e=>opacity=+e.target.value/100;
 document.querySelector('#contactSensitivity').oninput=e=>{contactSensitivity=+e.target.value/100;document.querySelector('#contactSensitivityVal').textContent=e.target.value+'%';};
 document.querySelector('#angleSensitivity').oninput=e=>{angleSensitivity=+e.target.value/100;document.querySelector('#angleSensitivityVal').textContent=e.target.value+'%';};
 document.querySelector('#taper').oninput=e=>{endTaper=+e.target.value/100;document.querySelector('#taperVal').textContent=e.target.value+'%';};
+ const contactPanel=document.querySelector('#contactPanel'),contactFootprint=document.querySelector('#contactFootprint');
+ document.querySelector('#contactToggle').onclick=()=>{contactPanel.classList.toggle('open');};
+ function refreshVirtualContact(){
+   const size=+document.querySelector('#virtualSize').value,squish=+document.querySelector('#virtualSquish').value,angle=+document.querySelector('#virtualAngle').value;
+   virtualContactScale=size/100;virtualSquish=squish;virtualContactAngle=angle;
+   document.querySelector('#virtualSizeVal').textContent=size+'%';document.querySelector('#virtualSquishVal').textContent=squish+'%';document.querySelector('#virtualAngleVal').textContent=angle+'°';
+   contactFootprint.style.transform='rotate('+angle+'deg) scale('+(1+squish/70)+','+(1-squish/100)+')';
+   document.querySelector('#contactReadout').textContent=(squish>5?'Oval':'Round')+' · '+size+'%';
+ }
+ ['#virtualSize','#virtualSquish','#virtualAngle'].forEach(sel=>document.querySelector(sel).addEventListener('input',refreshVirtualContact));
+ refreshVirtualContact();
+
 document.querySelectorAll('.swatch').forEach((b,i)=>{if(i===0)b.classList.add('selected');b.onclick=()=>{color=b.dataset.color;document.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('selected',s===b));document.querySelector('#brushCursor').style.setProperty('--cursor-color',color);};});
 const brushCursor=document.querySelector('#brushCursor');
 viewport.addEventListener('pointermove',e=>{if(e.pointerType==='touch'||(tool!=='draw'&&tool!=='erase')){brushCursor.style.display='none';return;}const r=viewport.getBoundingClientRect();brushCursor.style.display='block';brushCursor.style.left=(e.clientX-r.left)+'px';brushCursor.style.top=(e.clientY-r.top)+'px';const diameter=Math.max(2,(tool==='erase'?eraserRadiusPx:brushSize)*2);brushCursor.style.width=brushCursor.style.height=diameter+'px';brushCursor.style.borderRadius=tool==='erase'?'3px':'50%';brushCursor.style.setProperty('--cursor-color',tool==='erase'?'#ff684d':color);});
