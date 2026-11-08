@@ -190,9 +190,15 @@ function redoAction(){const action=redoStack.pop();if(!action)return;if(action.t
 const strokePlane=new THREE.Plane();
 const pointerRaycaster=new THREE.Raycaster();
 function prepareStrokePlane(){
+  // Refresh camera transforms before building the stroke plane. Its local X/Y axes
+  // follow the camera's screen-right/screen-up directions, so left-right and
+  // up-down finger movement both map cleanly into the same stable 3D plane.
+  camera.updateMatrixWorld(true);
   const normal=new THREE.Vector3();
-  camera.getWorldDirection(normal);
-  strokePlane.setFromNormalAndCoplanarPoint(normal,orbit.target);
+  camera.getWorldDirection(normal).normalize();
+  strokePlane.setFromNormalAndCoplanarPoint(normal,orbit.target.clone());
+  pointerRaycaster.near=0;
+  pointerRaycaster.far=1000;
 }
 function pointFromEvent(e){
   const rect=canvas.getBoundingClientRect();
@@ -203,13 +209,13 @@ function pointFromEvent(e){
   const point=new THREE.Vector3();
   return pointerRaycaster.ray.intersectPlane(strokePlane,point)?point:null;
 }
-function strokeMaterial(){return new THREE.MeshStandardMaterial({color,transparent:opacity<1,opacity,roughness:.82,metalness:0});}
+function strokeMaterial(){return new THREE.MeshStandardMaterial({color,transparent:opacity<1,opacity,roughness:.82,metalness:0,depthWrite:false,depthTest:true});}
 function makeSquareStroke(points){
   if(!points.length)return null;
   const radius=Math.max(.012,brushSize*.008);
   if(points.length===1){
     const dab=new THREE.Mesh(new THREE.BoxGeometry(radius*2,radius*2,radius*2),strokeMaterial());
-    dab.position.copy(points[0]);dab.userData.stroke=true;return dab;
+    dab.position.copy(points[0]);dab.userData.stroke=true;dab.renderOrder=++strokeRenderOrder;dab.material.depthWrite=false;return dab;
   }
   const curve=new THREE.CatmullRomCurve3(points);
   const segments=Math.max(8,points.length*3);
@@ -232,12 +238,12 @@ function makeSquareStroke(points){
   geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
   geometry.setIndex(indices);geometry.computeVertexNormals();
   const material=strokeMaterial();material.flatShading=true;material.needsUpdate=true;
-  const mesh=new THREE.Mesh(geometry,material);mesh.userData.stroke=true;return mesh;
+  const mesh=new THREE.Mesh(geometry,material);mesh.userData.stroke=true;mesh.renderOrder=++strokeRenderOrder;return mesh;
 }
 function makeStroke(points){
   const mesh=makeSquareStroke(points);if(mesh){const group=layers[activeLayer].group;group.add(mesh);recordAction({type:'add',group,object:mesh});}
 }
-let previewFrame=0;
+let previewFrame=0,strokeRenderOrder=10;
 function updateStrokePreview(){
   if(currentLine){layers[activeLayer].group.remove(currentLine);currentLine.geometry.dispose();currentLine.material.dispose();currentLine=null;}
   if(currentPoints.length<2)return;
