@@ -149,15 +149,14 @@ button.active{animation:stamp .24s ease-out}
 <header class="top"><div><div class="brand">TETHERLESS<span>3D</span></div><div class="sub">CUT PAPER · INK · IMAGINATION</div></div><div class="top-actions"><button id="panelBtn" class="mobile-panels">☷</button><button id="saveBtn">Save</button></div></header>
 <main class="workspace"><nav class="rail">
 <button class="tool active" id="drawTool" title="Draw">✎</button><button class="tool" id="eraseTool" title="Eraser">⌫</button><button class="tool" id="selectTool" title="Select / transform">↗</button><button class="tool" id="undoBtn" title="Undo">↶</button><button class="tool" id="redoBtn" title="Redo">↷</button>
-</nav><section class="viewport"><canvas id="stage"></canvas><canvas id="eraserPreviewCanvas" aria-hidden="true"></canvas><button class="contact-toggle" id="contactToggle" type="button">◎ Contact</button><div class="contact-panel" id="contactPanel"><div class="panel-title"><span>VIRTUAL FINGER</span><small id="contactReadout">Round · 100%</small></div><div class="contact-preview-wrap"><div id="contactFootprint"></div></div><label class="control">Contact size <small id="virtualSizeVal">100%</small><input id="virtualSize" type="range" min="25" max="250" value="100"></label><label class="control">Squish <small id="virtualSquishVal">0%</small><input id="virtualSquish" type="range" min="0" max="85" value="0"></label><label class="control">Angle <small id="virtualAngleVal">0°</small><input id="virtualAngle" type="range" min="-180" max="180" value="0"></label><small>Shapes the actual 3D brush cross-section. Independent of brush size.</small></div><div id="brushCursor"></div><div class="mode-pill" id="modeLabel">3D DRAWING SPACE</div><div class="camera-dock" aria-label="Camera controls"><button id="zoomOut" title="Zoom out">−</button><button id="zoomIn" title="Zoom in">＋</button><button id="cameraReset" title="Reset camera">⌂</button></div><div class="hint" id="hint">One finger draws on the view plane · Rotate the camera to change drawing direction · Two fingers orbit + pinch to zoom</div><div id="engineError" role="status" style="display:none;position:absolute;z-index:20;left:12px;right:12px;top:64px;padding:12px;background:#fff0e8;border:2px solid #9d3022;color:#6b2018;font-weight:800;white-space:pre-wrap">3D engine error</div></section>
+</nav><section class="viewport"><canvas id="stage"></canvas><canvas id="eraserPreviewCanvas" aria-hidden="true"></canvas><div id="brushCursor"></div><div class="mode-pill" id="modeLabel">3D DRAWING SPACE</div><div class="camera-dock" aria-label="Camera controls"><button id="zoomOut" title="Zoom out">−</button><button id="zoomIn" title="Zoom in">＋</button><button id="cameraReset" title="Reset camera">⌂</button></div><div class="hint" id="hint">One finger draws on the view plane · Rotate the camera to change drawing direction · Two fingers orbit + pinch to zoom</div><div id="engineError" role="status" style="display:none;position:absolute;z-index:20;left:12px;right:12px;top:64px;padding:12px;background:#fff0e8;border:2px solid #9d3022;color:#6b2018;font-weight:800;white-space:pre-wrap">3D engine error</div></section>
 <aside class="side" id="side">
 <div><div class="section-head">Layers <button id="addLayer">＋</button></div><div id="layers"></div></div>
 <div><div class="section-head">Brush <small id="sizeVal">6 px</small></div>
 <label class="control">Brush size <input id="brushSize" type="range" min="1" max="36" value="6"></label>
 <label class="control">Eraser radius <small id="eraserSizeVal">6 px</small><input id="eraserSize" type="range" min="1" max="36" value="6"></label>
 <label class="control">Opacity<input id="opacity" type="range" min="10" max="100" value="100"></label>
-<label class="control">Contact sensitivity <small id="contactSensitivityVal">100%</small><input id="contactSensitivity" type="range" min="0" max="200" value="100"></label>
-<label class="control">Angle sensitivity <small id="angleSensitivityVal">100%</small><input id="angleSensitivity" type="range" min="0" max="200" value="100"></label>
+<label class="control">Speed response <small id="velocitySensitivityVal">100%</small><input id="velocitySensitivity" type="range" min="0" max="200" value="100"></label>
 <label class="control">End taper <small id="taperVal">35%</small><input id="taper" type="range" min="0" max="100" value="35"></label>
 <div class="swatches" id="swatches"><button class="swatch" data-color="#d9f78a" style="background:#d9f78a"></button><button class="swatch" data-color="#ff9473" style="background:#ff9473"></button><button class="swatch" data-color="#8bd9ff" style="background:#8bd9ff"></button><button class="swatch" data-color="#f1eee4" style="background:#f1eee4"></button><button class="swatch" data-color="#c49aff" style="background:#c49aff"></button></div></div>
 <div><div class="section-head">Animation <small>keyframes</small></div><button id="keyBtn" style="width:100%">＋ Add keyframe</button><button id="playBtn" style="width:100%;margin-top:7px">▶ Play preview</button><div class="sub" id="frameInfo" style="margin-top:7px">0 keyframes · 12 FPS</div></div>
@@ -191,7 +190,7 @@ const root=new THREE.Group();scene.add(root);
 const testCube=new THREE.Group();const cubeMesh=new THREE.Mesh(new THREE.BoxGeometry(2,2,2),new THREE.MeshStandardMaterial({color:0xff765e,roughness:.48,metalness:.05}));const cubeEdges=new THREE.LineSegments(new THREE.EdgesGeometry(cubeMesh.geometry),new THREE.LineBasicMaterial({color:0x282321,linewidth:2}));testCube.add(cubeMesh,cubeEdges);testCube.visible=true;scene.add(testCube);
 const transform=new TransformControls(camera,renderer.domElement);scene.add(transform);transform.setMode('translate');let gizmoDragging=false;transform.addEventListener('dragging-changed',e=>{gizmoDragging=e.value;orbit.enabled=false;if(gizmoDragging){if(drawing)finishStroke(false);activePointers.clear();gestureState=null;mouseCamera=null;}});
 const orbit=new (await import('three/addons/controls/OrbitControls.js')).OrbitControls(camera,renderer.domElement);orbit.enableDamping=true;orbit.dampingFactor=.08;orbit.enableZoom=true;orbit.enablePan=true;orbit.enableRotate=true;orbit.minDistance=2.5;orbit.maxDistance=40;orbit.zoomSpeed=.9;orbit.panSpeed=.85;orbit.rotateSpeed=.75;orbit.target.set(0,0,0);orbit.enabled=false;
-let activeLayer=0,tool='draw',color='#d9f78a',brushSize=6,eraserRadiusPx=6,opacity=1,contactSensitivity=1,angleSensitivity=1,endTaper=.35,virtualContactScale=1,virtualSquish=0,virtualContactAngle=0,drawing=false,currentPoints=[],currentBrushSamples=[],currentLine=null,undoStack=[],redoStack=[],keyframes=[],playing=false,playStart=0;let latestTouchAngle=0,latestTouchContact=null,primaryTouchIdentifier=null;
+let activeLayer=0,tool='draw',color='#d9f78a',brushSize=6,eraserRadiusPx=6,opacity=1,velocitySensitivity=1,endTaper=.35,drawing=false,currentPoints=[],currentBrushSamples=[],currentLine=null,undoStack=[],redoStack=[],keyframes=[],playing=false,playStart=0;let lastBrushPointer=null,smoothedBrushSpeed=0;
 const layers=[];
 function addLayer(name='Layer '+(layers.length+1)){const group=new THREE.Group();group.name=name;root.add(group);layers.push({name,group,visible:true});activeLayer=layers.length-1;renderLayers();}
 addLayer('Starfish');addLayer('Details');activeLayer=0;
@@ -225,31 +224,15 @@ function pointFromEvent(e){
   return pointerRaycaster.ray.intersectPlane(strokePlane,point)?point:null;
 }
 function strokeMaterial(style={}){const strokeColor=style.color??color,strokeOpacity=style.opacity??opacity;return new THREE.MeshStandardMaterial({color:strokeColor,transparent:strokeOpacity<1,opacity:strokeOpacity,roughness:.82,metalness:0,depthWrite:strokeOpacity>=1,depthTest:true});}
-function readBrushContact(e){
-  const isStylus=e.pointerType==='pen';
-  const touch= e.pointerType==='touch'&&latestTouchContact&&Math.hypot(e.clientX-latestTouchContact.x,e.clientY-latestTouchContact.y)<64?latestTouchContact:null;
-  // Touch.radiusX/Y are the browser's estimate of the live capacitive contact ellipse.
-  // PointerEvent.width/height remain the fallback when Touch radii are unavailable.
-  const w=Math.max(1,touch&&touch.radiusX>0?touch.radiusX*2:Number(e.width)||1);
-  const h=Math.max(1,touch&&touch.radiusY>0?touch.radiusY*2:Number(e.height)||1);
-  const aspect=THREE.MathUtils.clamp(Math.sqrt(w/h),.45,2.2);
-  const measuredArea=THREE.MathUtils.clamp(Math.sqrt(w*h)/24,.45,2.4);
-  const contactScale=THREE.MathUtils.lerp(1,measuredArea,contactSensitivity);
-  const stylusPressure=isStylus&&Number.isFinite(e.pressure)&&e.pressure>0?THREE.MathUtils.clamp(.35+e.pressure*1.3,.35,1.65):1;
-  const width=THREE.MathUtils.clamp(contactScale*THREE.MathUtils.lerp(1,aspect,contactSensitivity)*stylusPressure,.2,2.8);
-  const height=THREE.MathUtils.clamp(contactScale*THREE.MathUtils.lerp(1,1/aspect,contactSensitivity)*stylusPressure,.2,2.8);
-  const tiltX=isStylus?(Number(e.tiltX)||0)*Math.PI/180:0,tiltY=isStylus?(Number(e.tiltY)||0)*Math.PI/180:0;
-  const touchAngle=touch&&Number.isFinite(touch.rotationAngle)?touch.rotationAngle*Math.PI/180:latestTouchAngle;
-  const squash=virtualSquish/100,virtualAspect=1-squash*.82;return {width:THREE.MathUtils.clamp(width*virtualContactScale/virtualAspect,.15,4),height:THREE.MathUtils.clamp(height*virtualContactScale*virtualAspect,.15,4),angle:(isStylus?Math.atan2(tiltY,tiltX):touchAngle)+virtualContactAngle*Math.PI/180};
-}
-function captureTouchContact(e){
-  const list=Array.from(e.touches||[]);
-  let touch=primaryTouchIdentifier==null?list[0]:list.find(t=>t.identifier===primaryTouchIdentifier);
-  if(!touch){latestTouchContact=null;return;}
-  if(primaryTouchIdentifier==null)primaryTouchIdentifier=touch.identifier;
-  const rx=Number(touch.radiusX),ry=Number(touch.radiusY),angle=Number(touch.rotationAngle);
-  latestTouchContact={x:touch.clientX,y:touch.clientY,radiusX:Number.isFinite(rx)&&rx>0?rx:0,radiusY:Number.isFinite(ry)&&ry>0?ry:0,rotationAngle:Number.isFinite(angle)?angle:NaN};
-  if(Number.isFinite(angle))latestTouchAngle=angle*Math.PI/180;
+function sampleBrushVelocity(e,reset=false){
+  const now=Number.isFinite(e.timeStamp)?e.timeStamp:performance.now();
+  let speed=0;
+  if(!reset&&lastBrushPointer){const dt=Math.max(1,now-lastBrushPointer.time);speed=Math.hypot(e.clientX-lastBrushPointer.x,e.clientY-lastBrushPointer.y)/dt;}
+  lastBrushPointer={x:e.clientX,y:e.clientY,time:now};
+  smoothedBrushSpeed=reset?0:THREE.MathUtils.lerp(smoothedBrushSpeed,speed,.38);
+  const response=THREE.MathUtils.clamp(1.45-(smoothedBrushSpeed/1.8)*1.1,.32,1.45);
+  const width=THREE.MathUtils.lerp(1,response,velocitySensitivity);
+  return {width,height:1,angle:0};
 }
 
 function makeSquareStroke(points,style={}){
@@ -271,7 +254,7 @@ function makeSquareStroke(points,style={}){
   for(let i=0;i<=segments;i++){
     const t=i/segments,p=curve.getPointAt(t),n=frames.normals[i],b=frames.binormals[i],sample=sampleAt(t);
     const taper=Math.max(.035,Math.min(1,Math.min(endTaper>0?(.08+t/endTaper):1,endTaper>0?(.08+(1-t)/endTaper):1)));
-    const angle=sample.angle*angleSensitivity,ca=Math.cos(angle),sa=Math.sin(angle);
+    const angle=sample.angle||0,ca=Math.cos(angle),sa=Math.sin(angle);
     const axisA=n.clone().multiplyScalar(ca).addScaledVector(b,sa),axisB=b.clone().multiplyScalar(ca).addScaledVector(n,-sa);
     const halfA=radius*Math.max(.12,sample.width)*taper,halfB=radius*Math.max(.12,sample.height)*taper;
     for(const [u,v] of [[1,1],[-1,1],[-1,-1],[1,-1]]){const q=p.clone().addScaledVector(axisA,u*halfA).addScaledVector(axisB,v*halfB);positions.push(q.x,q.y,q.z);}
@@ -442,10 +425,7 @@ function beginTwoFingerGesture(){
   gestureState={x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2,
     distance:Math.hypot(pts[1].x-pts[0].x,pts[1].y-pts[0].y)};
 }
-viewport.addEventListener('touchstart',e=>{if(e.touches.length===1){primaryTouchIdentifier=e.touches[0].identifier;captureTouchContact(e);}},{passive:true});
-viewport.addEventListener('touchmove',e=>captureTouchContact(e),{passive:true});
-viewport.addEventListener('touchend',e=>{if(!Array.from(e.touches||[]).some(t=>t.identifier===primaryTouchIdentifier)){primaryTouchIdentifier=null;latestTouchContact=null;latestTouchAngle=0;}},{passive:true});
-viewport.addEventListener('touchcancel',()=>{primaryTouchIdentifier=null;latestTouchContact=null;latestTouchAngle=0;},{passive:true});
+
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
 canvas.addEventListener('wheel',e=>{e.preventDefault();zoomBy(e.deltaY>0?1.08:.92);},{passive:false});
 canvas.addEventListener('pointerdown',e=>{
@@ -461,7 +441,7 @@ canvas.addEventListener('pointerdown',e=>{
   }else if((tool!=='draw'&&tool!=='erase')||transform.dragging||gizmoDragging)return;
   prepareStrokePlane();
   const point=pointFromEvent(e);if(!point)return;
-  drawing=true;activeStrokeTool=tool;activeStrokeGroup=layers[activeLayer].group;currentPoints=[point];currentBrushSamples=[readBrushContact(e)];if(activeStrokeTool==='erase'){eraserScreenPoints=[];addEraserScreenPoint(e);updateEraserPreview();}else updateStrokePreview();
+  drawing=true;activeStrokeTool=tool;activeStrokeGroup=layers[activeLayer].group;currentPoints=[point];smoothedBrushSpeed=0;lastBrushPointer=null;currentBrushSamples=[sampleBrushVelocity(e,true)];if(activeStrokeTool==='erase'){eraserScreenPoints=[];addEraserScreenPoint(e);updateEraserPreview();}else updateStrokePreview();
 });
 canvas.addEventListener('pointermove',e=>{
   if(e.pointerType==='touch'&&activePointers.has(e.pointerId)){
@@ -485,7 +465,7 @@ canvas.addEventListener('pointermove',e=>{
   if(!drawing||gizmoDragging)return;
   const point=pointFromEvent(e);if(!point)return;
   if(currentPoints[currentPoints.length-1].distanceTo(point)>Math.max(.018,brushSize*.0025)){
-    currentPoints.push(point);if(activeStrokeTool==='draw')currentBrushSamples.push(readBrushContact(e));if(activeStrokeTool==='erase')addEraserScreenPoint(e);
+    currentPoints.push(point);if(activeStrokeTool==='draw')currentBrushSamples.push(sampleBrushVelocity(e));if(activeStrokeTool==='erase')addEraserScreenPoint(e);
     if(currentPoints.length>700){const compact=currentPoints.filter((_,i)=>i%2===0),compactSamples=currentBrushSamples.filter((_,i)=>i%2===0);if(compact[compact.length-1]!==currentPoints[currentPoints.length-1]){compact.push(currentPoints[currentPoints.length-1]);if(currentBrushSamples.length)compactSamples.push(currentBrushSamples[currentBrushSamples.length-1]);}currentPoints=compact;currentBrushSamples=compactSamples;}
     scheduleStrokePreview();
   }
@@ -521,20 +501,9 @@ document.querySelector('#addLayer').onclick=()=>addLayer();document.querySelecto
 document.querySelector('#brushSize').oninput=e=>{brushSize=+e.target.value;document.querySelector('#sizeVal').textContent=brushSize+' px';};
 document.querySelector('#eraserSize').oninput=e=>{eraserRadiusPx=+e.target.value;document.querySelector('#eraserSizeVal').textContent=eraserRadiusPx+' px';if(drawing&&activeStrokeTool==='erase')scheduleStrokePreview();};
 document.querySelector('#opacity').oninput=e=>opacity=+e.target.value/100;
-document.querySelector('#contactSensitivity').oninput=e=>{contactSensitivity=+e.target.value/100;document.querySelector('#contactSensitivityVal').textContent=e.target.value+'%';};
-document.querySelector('#angleSensitivity').oninput=e=>{angleSensitivity=+e.target.value/100;document.querySelector('#angleSensitivityVal').textContent=e.target.value+'%';};
+document.querySelector('#velocitySensitivity').oninput=e=>{velocitySensitivity=+e.target.value/100;document.querySelector('#velocitySensitivityVal').textContent=e.target.value+'%';};
 document.querySelector('#taper').oninput=e=>{endTaper=+e.target.value/100;document.querySelector('#taperVal').textContent=e.target.value+'%';};
- const contactPanel=document.querySelector('#contactPanel'),contactFootprint=document.querySelector('#contactFootprint');
- document.querySelector('#contactToggle').onclick=()=>{contactPanel.classList.toggle('open');};
- function refreshVirtualContact(){
-   const size=+document.querySelector('#virtualSize').value,squish=+document.querySelector('#virtualSquish').value,angle=+document.querySelector('#virtualAngle').value;
-   virtualContactScale=size/100;virtualSquish=squish;virtualContactAngle=angle;
-   document.querySelector('#virtualSizeVal').textContent=size+'%';document.querySelector('#virtualSquishVal').textContent=squish+'%';document.querySelector('#virtualAngleVal').textContent=angle+'°';
-   contactFootprint.style.transform='rotate('+angle+'deg) scale('+(1+squish/70)+','+(1-squish/100)+')';
-   document.querySelector('#contactReadout').textContent=(squish>5?'Oval':'Round')+' · '+size+'%';
- }
- ['#virtualSize','#virtualSquish','#virtualAngle'].forEach(sel=>document.querySelector(sel).addEventListener('input',refreshVirtualContact));
- refreshVirtualContact();
+
 
 document.querySelectorAll('.swatch').forEach((b,i)=>{if(i===0)b.classList.add('selected');b.onclick=()=>{color=b.dataset.color;document.querySelectorAll('.swatch').forEach(s=>s.classList.toggle('selected',s===b));document.querySelector('#brushCursor').style.setProperty('--cursor-color',color);};});
 const brushCursor=document.querySelector('#brushCursor');
