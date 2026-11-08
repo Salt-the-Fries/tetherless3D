@@ -138,7 +138,7 @@ button.active{animation:stamp .24s ease-out}
 <header class="top"><div><div class="brand">TETHERLESS<span>3D</span></div><div class="sub">CUT PAPER · INK · IMAGINATION</div></div><div class="top-actions"><button id="panelBtn" class="mobile-panels">☷</button><button id="saveBtn">Save</button></div></header>
 <main class="workspace"><nav class="rail">
 <button class="tool active" id="drawTool" title="Draw">✎</button><button class="tool" id="selectTool" title="Select / transform">↗</button><button class="tool" id="orbitTool" title="Orbit camera">◎</button><button class="tool" id="undoBtn" title="Undo">↶</button><button class="tool" id="redoBtn" title="Redo">↷</button>
-</nav><section class="viewport"><canvas id="stage"></canvas><div id="brushCursor"></div><div class="mode-pill" id="modeLabel">3D DRAWING SPACE</div><div class="camera-dock" aria-label="Camera controls"><button id="zoomOut" title="Zoom out">−</button><button id="zoomIn" title="Zoom in">＋</button><button id="cameraReset" title="Reset camera">⌂</button></div><div class="hint" id="hint">Draw with one finger · Select a layer to move the whole drawing</div><div id="engineError" role="status" style="display:none;position:absolute;z-index:20;left:12px;right:12px;top:64px;padding:12px;background:#fff0e8;border:2px solid #9d3022;color:#6b2018;font-weight:800;white-space:pre-wrap">3D engine error</div></section>
+</nav><section class="viewport"><canvas id="stage"></canvas><div id="brushCursor"></div><div class="mode-pill" id="modeLabel">3D DRAWING SPACE</div><div class="camera-dock" aria-label="Camera controls"><button id="zoomOut" title="Zoom out">−</button><button id="zoomIn" title="Zoom in">＋</button><button id="cameraReset" title="Reset camera">⌂</button></div><div class="hint" id="hint">One finger draws · Two fingers orbit + pinch to zoom · Right-drag orbits on desktop</div><div id="engineError" role="status" style="display:none;position:absolute;z-index:20;left:12px;right:12px;top:64px;padding:12px;background:#fff0e8;border:2px solid #9d3022;color:#6b2018;font-weight:800;white-space:pre-wrap">3D engine error</div></section>
 <aside class="side" id="side">
 <div><div class="section-head">Layers <button id="addLayer">＋</button></div><div id="layers"></div></div>
 <div><div class="section-head">Brush <small id="sizeVal">6 px</small></div>
@@ -196,56 +196,131 @@ function pointFromEvent(e){
   return pointerRaycaster.ray.intersectPlane(drawingPlane,point)?point:null;
 }
 function strokeMaterial(){return new THREE.MeshStandardMaterial({color,transparent:opacity<1,opacity,roughness:.82,metalness:0});}
-function makeStroke(points){
-  if(!points.length)return;
-  const group=layers[activeLayer].group;
+function makeSquareStroke(points){
+  if(!points.length)return null;
   const radius=Math.max(.012,brushSize*.008);
   if(points.length===1){
-    const dab=new THREE.Mesh(new THREE.SphereGeometry(radius,12,8),strokeMaterial());
-    dab.position.copy(points[0]);dab.userData.stroke=true;group.add(dab);return;
+    const dab=new THREE.Mesh(new THREE.BoxGeometry(radius*2,radius*2,radius*2),strokeMaterial());
+    dab.position.copy(points[0]);dab.userData.stroke=true;return dab;
   }
   const curve=new THREE.CatmullRomCurve3(points);
-  const geometry=new THREE.TubeGeometry(curve,Math.max(16,points.length*4),radius,8,false);
-  const mesh=new THREE.Mesh(geometry,strokeMaterial());
-  mesh.userData.stroke=true;group.add(mesh);
+  const segments=Math.max(8,points.length*3);
+  const frames=curve.computeFrenetFrames(segments,false);
+  const positions=[],indices=[];
+  for(let i=0;i<=segments;i++){
+    const t=i/segments,p=curve.getPointAt(t),n=frames.normals[i],b=frames.binormals[i];
+    positions.push(
+      p.x+radius*(n.x+b.x),p.y+radius*(n.y+b.y),p.z+radius*(n.z+b.z),
+      p.x+radius*(-n.x+b.x),p.y+radius*(-n.y+b.y),p.z+radius*(-n.z+b.z),
+      p.x+radius*(-n.x-b.x),p.y+radius*(-n.y-b.y),p.z+radius*(-n.z-b.z),
+      p.x+radius*(n.x-b.x),p.y+radius*(n.y-b.y),p.z+radius*(n.z-b.z)
+    );
+  }
+  for(let i=0;i<segments;i++)for(let j=0;j<4;j++){
+    const a=i*4+j,b=i*4+(j+1)%4,c=(i+1)*4+(j+1)%4,d=(i+1)*4+j;
+    indices.push(a,b,d,b,c,d);
+  }
+  const geometry=new THREE.BufferGeometry();
+  geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
+  geometry.setIndex(indices);geometry.computeVertexNormals();
+  const flat=geometry.toNonIndexed();geometry.dispose();flat.computeVertexNormals();
+  const mesh=new THREE.Mesh(flat,strokeMaterial());mesh.userData.stroke=true;return mesh;
+}
+function makeStroke(points){
+  const mesh=makeSquareStroke(points);if(mesh)layers[activeLayer].group.add(mesh);
 }
 function updateStrokePreview(){
   if(currentLine){layers[activeLayer].group.remove(currentLine);currentLine.geometry.dispose();currentLine.material.dispose();currentLine=null;}
   if(currentPoints.length<2)return;
-  const geometry=new THREE.BufferGeometry().setFromPoints(currentPoints);
-  const material=new THREE.LineBasicMaterial({color,transparent:opacity<1,opacity,depthTest:true});
-  currentLine=new THREE.Line(geometry,material);currentLine.frustumCulled=false;
-  layers[activeLayer].group.add(currentLine);
+  currentLine=makeSquareStroke(currentPoints);if(currentLine)layers[activeLayer].group.add(currentLine);
 }
-function finishStroke(){
+function clearPreview(){if(currentLine){layers[activeLayer].group.remove(currentLine);currentLine.geometry.dispose();currentLine.material.dispose();currentLine=null;}}
+function finishStroke(commit=true){
   if(!drawing)return;
-  drawing=false;
-  if(currentLine){layers[activeLayer].group.remove(currentLine);currentLine.geometry.dispose();currentLine.material.dispose();currentLine=null;}
-  if(currentPoints.length){snapshot();makeStroke(currentPoints);}
+  drawing=false;clearPreview();
+  if(commit&&currentPoints.length){snapshot();makeStroke(currentPoints);}
   currentPoints=[];
 }
+// One finger draws. Two fingers take over for camera orbit and pinch zoom.
+const activePointers=new Map();
+let gestureState=null,mouseCamera=null;
+const cameraTarget=orbit.target;
+function cameraOrbit(dx,dy){
+  const offset=camera.position.clone().sub(cameraTarget);
+  const spherical=new THREE.Spherical().setFromVector3(offset);
+  spherical.theta-=dx*.006;spherical.phi=THREE.MathUtils.clamp(spherical.phi-dy*.006,.08,Math.PI-.08);
+  offset.setFromSpherical(spherical);camera.position.copy(cameraTarget).add(offset);camera.lookAt(cameraTarget);orbit.update();
+}
+function cameraPan(dx,dy){
+  const distance=camera.position.distanceTo(cameraTarget);
+  const scale=distance*.0018;
+  const right=new THREE.Vector3().setFromMatrixColumn(camera.matrix,0);
+  const up=new THREE.Vector3().setFromMatrixColumn(camera.matrix,1);
+  const shift=right.multiplyScalar(-dx*scale).add(up.multiplyScalar(dy*scale));
+  camera.position.add(shift);cameraTarget.add(shift);orbit.update();
+}
+function zoomBy(factor){cameraZoom(factor);}
+function beginTwoFingerGesture(){
+  if(drawing)finishStroke(false);
+  const pts=[...activePointers.values()];
+  if(pts.length<2)return;
+  gestureState={x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2,
+    distance:Math.hypot(pts[1].x-pts[0].x,pts[1].y-pts[0].y)};
+}
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
+canvas.addEventListener('wheel',e=>{e.preventDefault();zoomBy(e.deltaY>0?1.08:.92);},{passive:false});
 canvas.addEventListener('pointerdown',e=>{
-  if(tool!=='draw'||transform.dragging)return;
-  const point=pointFromEvent(e);
-  if(!point)return;
-  drawing=true;
-  try{canvas.setPointerCapture(e.pointerId);}catch{}
-  currentPoints=[point];
-  updateStrokePreview();
+  if(e.pointerType==='touch'){
+    activePointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    try{canvas.setPointerCapture(e.pointerId);}catch{}
+    if(activePointers.size===2){beginTwoFingerGesture();return;}
+    if(activePointers.size>2)return;
+    if(tool!=='draw'||transform.dragging)return;
+  }else if(e.button===2||e.button===1){
+    mouseCamera={id:e.pointerId,x:e.clientX,y:e.clientY,pan:e.button===1||e.shiftKey};
+    try{canvas.setPointerCapture(e.pointerId);}catch{}return;
+  }else if(tool!=='draw'||transform.dragging)return;
+  const point=pointFromEvent(e);if(!point)return;
+  drawing=true;currentPoints=[point];updateStrokePreview();
 });
 canvas.addEventListener('pointermove',e=>{
+  if(e.pointerType==='touch'&&activePointers.has(e.pointerId)){
+    const previous=activePointers.get(e.pointerId);
+    activePointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(activePointers.size>=2){
+      const pts=[...activePointers.values()];
+      if(!gestureState){beginTwoFingerGesture();return;}
+      const cx=(pts[0].x+pts[1].x)/2,cy=(pts[0].y+pts[1].y)/2;
+      const distance=Math.hypot(pts[1].x-pts[0].x,pts[1].y-pts[0].y);
+      cameraOrbit(cx-gestureState.x,cy-gestureState.y);
+      if(gestureState.distance>1&&distance>1)zoomBy(gestureState.distance/distance);
+      gestureState={x:cx,y:cy,distance};return;
+    }
+  }
+  if(mouseCamera&&mouseCamera.id===e.pointerId){
+    const dx=e.clientX-mouseCamera.x,dy=e.clientY-mouseCamera.y;
+    if(mouseCamera.pan)cameraPan(dx,dy);else cameraOrbit(dx,dy);
+    mouseCamera.x=e.clientX;mouseCamera.y=e.clientY;return;
+  }
   if(!drawing)return;
-  const point=pointFromEvent(e);
-  if(!point)return;
+  const point=pointFromEvent(e);if(!point)return;
   if(currentPoints[currentPoints.length-1].distanceTo(point)>.018){
-    currentPoints.push(point);
-    updateStrokePreview();
+    currentPoints.push(point);updateStrokePreview();
   }
 });
-canvas.addEventListener('pointerup',finishStroke);
-canvas.addEventListener('pointercancel',finishStroke);
-canvas.addEventListener('lostpointercapture',finishStroke);
-function setTool(t){tool=t;document.querySelectorAll('.rail .tool').forEach(b=>b.classList.remove('active'));({draw:'#drawTool',select:'#selectTool',orbit:'#orbitTool'}[t]&&document.querySelector(({draw:'#drawTool',select:'#selectTool',orbit:'#orbitTool'}[t])).classList.add('active'));if(t==='draw'){transform.detach();orbit.enabled=false;}if(t==='select'){orbit.enabled=false;const g=layers[activeLayer].group;if(g.children.length)transform.attach(g);}if(t==='orbit'){transform.detach();orbit.enabled=true;orbit.enableRotate=true;orbit.enablePan=true;orbit.enableZoom=true;}canvas.style.cursor=t==='draw'?'none':'grab';brushCursor.style.display='none';document.querySelector('#hint').textContent=t==='orbit'?('Drag to orbit · Pinch or wheel to zoom · Two fingers to pan'):'Draw with one finger · Select a layer to move the whole drawing';}
+function endPointer(e){
+  if(activePointers.has(e.pointerId)){
+    activePointers.delete(e.pointerId);gestureState=null;
+    if(activePointers.size===0&&!drawing)currentPoints=[];
+    return;
+  }
+  if(mouseCamera&&mouseCamera.id===e.pointerId){mouseCamera=null;return;}
+  if(drawing)finishStroke(true);
+}
+canvas.addEventListener('pointerup',endPointer);
+canvas.addEventListener('pointercancel',e=>{if(activePointers.has(e.pointerId)){activePointers.delete(e.pointerId);gestureState=null;}else finishStroke(false);});
+canvas.addEventListener('lostpointercapture',e=>{if(activePointers.has(e.pointerId)){activePointers.delete(e.pointerId);gestureState=null;}else if(drawing)finishStroke(false);});
+function setTool(t){tool=t;document.querySelectorAll('.rail .tool').forEach(b=>b.classList.remove('active'));({draw:'#drawTool',select:'#selectTool',orbit:'#orbitTool'}[t]&&document.querySelector(({draw:'#drawTool',select:'#selectTool',orbit:'#orbitTool'}[t])).classList.add('active'));if(t==='draw'){transform.detach();orbit.enabled=false;}if(t==='select'){orbit.enabled=false;const g=layers[activeLayer].group;if(g.children.length)transform.attach(g);}if(t==='orbit'){transform.detach();orbit.enabled=true;orbit.enableRotate=true;orbit.enablePan=true;orbit.enableZoom=true;}canvas.style.cursor=t==='draw'?'none':'grab';brushCursor.style.display='none';document.querySelector('#hint').textContent=t==='orbit'?('Right-drag to orbit · Shift/right-drag or middle-drag to pan · Wheel to zoom'):'One finger draws · Two fingers orbit + pinch to zoom · Right-drag orbits on desktop';}
 document.querySelector('#drawTool').onclick=()=>setTool('draw');document.querySelector('#selectTool').onclick=()=>setTool(tool==='select'?'draw':'select');document.querySelector('#orbitTool').onclick=()=>setTool(tool==='orbit'?'draw':'orbit');
 function resetCamera(){orbit.target.set(0,0,0);camera.up.set(0,1,0);camera.position.set(9,7,12);camera.lookAt(0,0,0);camera.fov=42;camera.updateProjectionMatrix();orbit.update();}
 function cameraZoom(factor){const offset=camera.position.clone().sub(orbit.target);offset.multiplyScalar(factor);const distance=THREE.MathUtils.clamp(offset.length(),orbit.minDistance,orbit.maxDistance);offset.setLength(distance);camera.position.copy(orbit.target).add(offset);orbit.update();}document.querySelector('#zoomIn').onclick=()=>cameraZoom(.8);document.querySelector('#zoomOut').onclick=()=>cameraZoom(1.25);document.querySelector('#cameraReset').onclick=()=>{resetCamera();};
