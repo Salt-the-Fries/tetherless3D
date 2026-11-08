@@ -191,7 +191,18 @@ const testCube=new THREE.Group();const cubeMesh=new THREE.Mesh(new THREE.BoxGeom
 const transform=new TransformControls(camera,renderer.domElement);scene.add(transform);transform.setMode('translate');let gizmoDragging=false;
 const gizmoRoot=transform._gizmo;
 const gizmoUpdate=gizmoRoot.updateMatrixWorld.bind(gizmoRoot);
-gizmoRoot.updateMatrixWorld=function(force){gizmoUpdate(force);for(const mode of ['translate','rotate','scale']){this.gizmo[mode].visible=true;this.helper[mode].visible=true;}};
+gizmoRoot.updateMatrixWorld=function(force){
+  const active=this.mode;
+  for(const mode of ['translate','rotate','scale']){
+    this.mode=mode;
+    gizmoUpdate(force);
+  }
+  this.mode=active;
+  for(const mode of ['translate','rotate','scale']){
+    this.gizmo[mode].visible=true;
+    this.helper[mode].visible=true;
+  }
+};
 const originalTransformHover=transform.pointerHover.bind(transform);
 transform.pointerHover=function(pointer){const raycaster=this.getRaycaster();raycaster.setFromCamera(new THREE.Vector2(pointer.x,pointer.y),camera);let chosen=null,best=Infinity;for(const mode of ['translate','rotate','scale']){const hits=raycaster.intersectObjects(this._gizmo.gizmo[mode].children,true);if(hits.length&&hits[0].distance<best){best=hits[0].distance;chosen=mode;}}if(chosen)this.setMode(chosen);return originalTransformHover(pointer);};
 const originalTransformUpdate=transform.updateMatrixWorld.bind(transform);
