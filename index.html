@@ -322,10 +322,10 @@ function updateEraserPreview(){
   clearEraserPreview();
 }
 function commitEraserPreview(){
-  if(!eraserPreview)return;
-  const group=eraserPreview.group;
-  for(const object of eraserPreview.removed)object.visible=true;
-  eraserPreview=null;
+  // The live pass deliberately leaves source strokes visible. Commit the
+  // actual cut once, on release, against the layer captured at pointerdown.
+  clearEraserPreview();
+  const group=activeStrokeGroup||layers[activeLayer].group;
   const result=computeEraserResult(currentPoints,group);
   if(!result.removed.length)return;
   for(const object of result.removed)group.remove(object);
