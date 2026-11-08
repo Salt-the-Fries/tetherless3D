@@ -181,7 +181,7 @@ const root=new THREE.Group();scene.add(root);
 const testCube=new THREE.Group();const cubeMesh=new THREE.Mesh(new THREE.BoxGeometry(2,2,2),new THREE.MeshStandardMaterial({color:0xff765e,roughness:.48,metalness:.05}));const cubeEdges=new THREE.LineSegments(new THREE.EdgesGeometry(cubeMesh.geometry),new THREE.LineBasicMaterial({color:0x282321,linewidth:2}));testCube.add(cubeMesh,cubeEdges);testCube.visible=true;scene.add(testCube);
 const transform=new TransformControls(camera,renderer.domElement);scene.add(transform);transform.setMode('translate');let gizmoDragging=false;transform.addEventListener('dragging-changed',e=>{gizmoDragging=e.value;orbit.enabled=false;if(gizmoDragging){if(drawing)finishStroke(false);activePointers.clear();gestureState=null;mouseCamera=null;}});
 const orbit=new (await import('three/addons/controls/OrbitControls.js')).OrbitControls(camera,renderer.domElement);orbit.enableDamping=true;orbit.dampingFactor=.08;orbit.enableZoom=true;orbit.enablePan=true;orbit.enableRotate=true;orbit.minDistance=2.5;orbit.maxDistance=40;orbit.zoomSpeed=.9;orbit.panSpeed=.85;orbit.rotateSpeed=.75;orbit.target.set(0,0,0);orbit.enabled=false;
-let activeLayer=0,tool='draw',color='#d9f78a',brushSize=6,eraserRadiusPx=6,opacity=1,contactSensitivity=1,angleSensitivity=1,endTaper=.35,drawing=false,currentPoints=[],currentBrushSamples=[],currentLine=null,undoStack=[],redoStack=[],keyframes=[],playing=false,playStart=0;let latestTouchAngle=0;
+let activeLayer=0,tool='draw',color='#d9f78a',brushSize=6,eraserRadiusPx=6,opacity=1,contactSensitivity=1,angleSensitivity=1,endTaper=.35,drawing=false,currentPoints=[],currentBrushSamples=[],currentLine=null,undoStack=[],redoStack=[],keyframes=[],playing=false,playStart=0;let latestTouchAngle=0,latestTouchContact=null,primaryTouchIdentifier=null;
 const layers=[];
 function addLayer(name='Layer '+(layers.length+1)){const group=new THREE.Group();group.name=name;root.add(group);layers.push({name,group,visible:true});activeLayer=layers.length-1;renderLayers();}
 addLayer('Starfish');addLayer('Details');activeLayer=0;
@@ -216,15 +216,32 @@ function pointFromEvent(e){
 }
 function strokeMaterial(style={}){const strokeColor=style.color??color,strokeOpacity=style.opacity??opacity;return new THREE.MeshStandardMaterial({color:strokeColor,transparent:strokeOpacity<1,opacity:strokeOpacity,roughness:.82,metalness:0,depthWrite:strokeOpacity>=1,depthTest:true});}
 function readBrushContact(e){
-  const isStylus=e.pointerType==='pen',w=Math.max(1,Number(e.width)||1),h=Math.max(1,Number(e.height)||1);
-  const ratio=THREE.MathUtils.clamp(w/Math.max(w,h),.18,1);
-  const contactScale=e.pointerType==='touch'?THREE.MathUtils.clamp(Math.sqrt(w*h)/12,.5,1.8):1;
+  const isStylus=e.pointerType==='pen';
+  const touch= e.pointerType==='touch'&&latestTouchContact&&Math.hypot(e.clientX-latestTouchContact.x,e.clientY-latestTouchContact.y)<64?latestTouchContact:null;
+  // Touch.radiusX/Y are the browser's estimate of the live capacitive contact ellipse.
+  // PointerEvent.width/height remain the fallback when Touch radii are unavailable.
+  const w=Math.max(1,touch&&touch.radiusX>0?touch.radiusX*2:Number(e.width)||1);
+  const h=Math.max(1,touch&&touch.radiusY>0?touch.radiusY*2:Number(e.height)||1);
+  const aspect=THREE.MathUtils.clamp(Math.sqrt(w/h),.45,2.2);
+  const measuredArea=THREE.MathUtils.clamp(Math.sqrt(w*h)/24,.45,2.4);
+  const contactScale=THREE.MathUtils.lerp(1,measuredArea,contactSensitivity);
   const stylusPressure=isStylus&&Number.isFinite(e.pressure)&&e.pressure>0?THREE.MathUtils.clamp(.35+e.pressure*1.3,.35,1.65):1;
-  const width=THREE.MathUtils.clamp(contactScale*stylusPressure*(1+(1-ratio)*contactSensitivity),.2,2.4);
-  const height=THREE.MathUtils.clamp(contactScale*stylusPressure*(1+(ratio-1)*contactSensitivity),.2,2.4);
+  const width=THREE.MathUtils.clamp(contactScale*THREE.MathUtils.lerp(1,aspect,contactSensitivity)*stylusPressure,.2,2.8);
+  const height=THREE.MathUtils.clamp(contactScale*THREE.MathUtils.lerp(1,1/aspect,contactSensitivity)*stylusPressure,.2,2.8);
   const tiltX=isStylus?(Number(e.tiltX)||0)*Math.PI/180:0,tiltY=isStylus?(Number(e.tiltY)||0)*Math.PI/180:0;
-  return {width,height,angle:isStylus?Math.atan2(tiltY,tiltX):latestTouchAngle};
+  const touchAngle=touch&&Number.isFinite(touch.rotationAngle)?touch.rotationAngle*Math.PI/180:latestTouchAngle;
+  return {width,height,angle:isStylus?Math.atan2(tiltY,tiltX):touchAngle};
 }
+function captureTouchContact(e){
+  const list=Array.from(e.touches||[]);
+  let touch=primaryTouchIdentifier==null?list[0]:list.find(t=>t.identifier===primaryTouchIdentifier);
+  if(!touch){latestTouchContact=null;return;}
+  if(primaryTouchIdentifier==null)primaryTouchIdentifier=touch.identifier;
+  const rx=Number(touch.radiusX),ry=Number(touch.radiusY),angle=Number(touch.rotationAngle);
+  latestTouchContact={x:touch.clientX,y:touch.clientY,radiusX:Number.isFinite(rx)&&rx>0?rx:0,radiusY:Number.isFinite(ry)&&ry>0?ry:0,rotationAngle:Number.isFinite(angle)?angle:NaN};
+  if(Number.isFinite(angle))latestTouchAngle=angle*Math.PI/180;
+}
+
 function makeSquareStroke(points,style={}){
   if(!points.length)return null;
   const strokeSize=style.size??brushSize,strokeColor=style.color??color,strokeOpacity=style.opacity??opacity;
@@ -415,8 +432,10 @@ function beginTwoFingerGesture(){
   gestureState={x:(pts[0].x+pts[1].x)/2,y:(pts[0].y+pts[1].y)/2,
     distance:Math.hypot(pts[1].x-pts[0].x,pts[1].y-pts[0].y)};
 }
-viewport.addEventListener('touchstart',e=>{if(e.touches.length===1&&Number.isFinite(e.touches[0].rotationAngle))latestTouchAngle=e.touches[0].rotationAngle*Math.PI/180;},{passive:true});
-viewport.addEventListener('touchmove',e=>{if(e.touches.length===1&&Number.isFinite(e.touches[0].rotationAngle))latestTouchAngle=e.touches[0].rotationAngle*Math.PI/180;},{passive:true});
+viewport.addEventListener('touchstart',e=>{if(e.touches.length===1){primaryTouchIdentifier=e.touches[0].identifier;captureTouchContact(e);}},{passive:true});
+viewport.addEventListener('touchmove',e=>captureTouchContact(e),{passive:true});
+viewport.addEventListener('touchend',e=>{if(!Array.from(e.touches||[]).some(t=>t.identifier===primaryTouchIdentifier)){primaryTouchIdentifier=null;latestTouchContact=null;latestTouchAngle=0;}},{passive:true});
+viewport.addEventListener('touchcancel',()=>{primaryTouchIdentifier=null;latestTouchContact=null;latestTouchAngle=0;},{passive:true});
 canvas.addEventListener('contextmenu',e=>e.preventDefault());
 canvas.addEventListener('wheel',e=>{e.preventDefault();zoomBy(e.deltaY>0?1.08:.92);},{passive:false});
 canvas.addEventListener('pointerdown',e=>{
