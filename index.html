@@ -235,10 +235,14 @@ function makeSquareStroke(points,style={}){
     const a=i*4+j,b=i*4+(j+1)%4,c=(i+1)*4+(j+1)%4,d=(i+1)*4+j;
     indices.push(a,b,d,b,c,d);
   }
+  // Close both ends so each stroke remains a genuinely solid 3D volume.
+  const startCap=positions.length/3;positions.push(...points[0].toArray());
+  const endCap=startCap+1;positions.push(...points[points.length-1].toArray());
+  for(let j=0;j<4;j++){const next=(j+1)%4;indices.push(startCap,next,j);const base=segments*4;indices.push(endCap,base+j,base+next);}
   const geometry=new THREE.BufferGeometry();
   geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
   geometry.setIndex(indices);geometry.computeVertexNormals();
-  const material=strokeMaterial({color:strokeColor,opacity:strokeOpacity});material.flatShading=true;material.needsUpdate=true;
+  const material=strokeMaterial({color:strokeColor,opacity:strokeOpacity});material.flatShading=true;material.side=THREE.DoubleSide;material.needsUpdate=true;
   const mesh=new THREE.Mesh(geometry,material);mesh.userData.stroke=true;mesh.userData.centerline=points.map(p=>p.toArray());mesh.userData.style={color:strokeColor,opacity:strokeOpacity,size:strokeSize};mesh.renderOrder=++strokeRenderOrder;return mesh;
 }
 function makeStroke(points){
@@ -246,8 +250,8 @@ function makeStroke(points){
 }
 function pointSegmentDistanceSq(p,a,b){const ab=b.clone().sub(a),den=ab.lengthSq();if(den<1e-10)return p.distanceToSquared(a);const t=THREE.MathUtils.clamp(p.clone().sub(a).dot(ab)/den,0,1);return p.distanceToSquared(a.add(ab.multiplyScalar(t)));}
 function distanceToErasePathSq(point,path){if(path.length===1)return point.distanceToSquared(path[0]);let best=Infinity;for(let i=1;i<path.length;i++)best=Math.min(best,pointSegmentDistanceSq(point,path[i-1],path[i]));return best;}
-function applyEraser(path){
-  if(!path.length)return;const group=layers[activeLayer].group,removed=[],added=[];
+function computeEraserResult(path,group){
+  const removed=[],added=[];if(!path.length)return {removed,added};
   const eraseRadius=Math.max(.025,brushSize*.012);
   for(const object of [...group.children]){if(!object.userData.stroke||!object.userData.centerline)continue;
     const source=object.userData.centerline.map(p=>new THREE.Vector3(...p));if(!source.length)continue;
@@ -260,10 +264,13 @@ function applyEraser(path){
     if(keep.length===1&&keep[0].length===samples.length)continue;
     removed.push(object);
     for(const segment of keep){if(segment.length<2&&samples.length>1)continue;const replacement=makeSquareStroke(segment,object.userData.style||{});if(replacement){replacement.renderOrder=object.renderOrder;group.add(replacement);added.push(replacement);}}
-    group.remove(object);
   }
-  if(removed.length)recordAction({type:'replace',group,removed,added});
+  return {removed,added};
 }
+let eraserPreview=null;
+function clearEraserPreview(){if(!eraserPreview)return;for(const object of eraserPreview.added){eraserPreview.group.remove(object);object.geometry?.dispose();object.material?.dispose();}for(const object of eraserPreview.removed)object.visible=true;eraserPreview=null;}
+function updateEraserPreview(){clearEraserPreview();if(currentPoints.length<1)return;const group=layers[activeLayer].group;const result=computeEraserResult(currentPoints,group);if(!result.removed.length)return;for(const object of result.removed)object.visible=false;eraserPreview={group,...result};for(const object of result.added)group.add(object);}
+function commitEraserPreview(){if(!eraserPreview)return;const {group,removed,added}=eraserPreview;for(const object of removed){object.visible=true;group.remove(object);}recordAction({type:'replace',group,removed,added});eraserPreview=null;}
 let previewFrame=0,strokeRenderOrder=10;
 function updateStrokePreview(){
   if(currentLine){layers[activeLayer].group.remove(currentLine);currentLine.geometry.dispose();currentLine.material.dispose();currentLine=null;}
@@ -273,12 +280,12 @@ function updateStrokePreview(){
   if(previewPoints[previewPoints.length-1]!==currentPoints[currentPoints.length-1])previewPoints.push(currentPoints[currentPoints.length-1]);
   currentLine=makeSquareStroke(previewPoints);if(currentLine)layers[activeLayer].group.add(currentLine);
 }
-function scheduleStrokePreview(){if(previewFrame)return;previewFrame=requestAnimationFrame(()=>{previewFrame=0;if(drawing)updateStrokePreview();});}
-function clearPreview(){if(previewFrame){cancelAnimationFrame(previewFrame);previewFrame=0;}if(currentLine){layers[activeLayer].group.remove(currentLine);currentLine.geometry.dispose();currentLine.material.dispose();currentLine=null;}}
+function scheduleStrokePreview(){if(previewFrame)return;previewFrame=requestAnimationFrame(()=>{previewFrame=0;if(!drawing)return;if(tool==='erase')updateEraserPreview();else updateStrokePreview();});}
+function clearPreview(){if(previewFrame){cancelAnimationFrame(previewFrame);previewFrame=0;}if(currentLine){layers[activeLayer].group.remove(currentLine);currentLine.geometry.dispose();currentLine.material.dispose();currentLine=null;}clearEraserPreview();}
 function finishStroke(commit=true){
   if(!drawing)return;
   drawing=false;clearPreview();
-  if(commit&&currentPoints.length){if(tool==='erase')applyEraser(currentPoints);else makeStroke(currentPoints);}
+  if(commit&&currentPoints.length){if(tool==='erase'){updateEraserPreview();commitEraserPreview();}else makeStroke(currentPoints);}
   currentPoints=[];
 }
 // One finger draws. Two fingers take over for camera orbit and pinch zoom.
