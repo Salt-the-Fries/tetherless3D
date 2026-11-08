@@ -85,33 +85,48 @@ button.active{animation:stamp .24s ease-out}
 .mode-pill,.hint{position:absolute;z-index:6}
 #brushCursor{z-index:7}
 
-/* DESKTOP-FIRST WORKSPACE ON EVERY SCREEN */
+/* RESPONSIVE PHONE MODE
+   Keep the full studio on desktop, but let the phone layout fit its viewport. */
 @media(max-width:760px){
-  html,body{width:100%;height:100%;overflow:auto;overscroll-behavior:auto;-webkit-text-size-adjust:100%;touch-action:pan-x pan-y pinch-zoom}
-  .app{width:960px;min-width:960px;height:100dvh;min-height:560px;grid-template-rows:64px minmax(0,1fr) 76px}
-  .top{padding:0 18px;gap:16px}
-  .brand{font-size:19px}
-  .sub{font-size:10px}
-  .top-actions{gap:10px}
-  .top-actions button{padding:10px 15px;font-size:14px}
-  .workspace{min-height:0;grid-template-columns:64px minmax(0,1fr) 260px}
-  .rail{display:flex;padding:14px 8px;gap:11px}
-  .tool{width:46px;height:48px;font-size:20px}
-  .side,.side.open{display:flex;position:relative;inset:auto;width:auto;height:auto;box-shadow:none;overflow:auto;padding:18px}
-  .mobile-panels{display:none!important}
-  .bottom{padding:10px 18px;gap:12px}
-  .bottom button{padding:11px 15px;font-size:12px}
-  .timeline input{width:190px}
-  .status{display:inline;font-size:10px}
-  .viewport:before{inset:13px}
-  .viewport:after{inset:5.5% 5%}
-  .hint{max-width:360px;font-size:12px;bottom:16px;left:18px}
+  html,body{width:100%;height:100%;overflow:hidden;overscroll-behavior:none;-webkit-text-size-adjust:100%;touch-action:pan-x pan-y pinch-zoom}
+  .app{width:100%;min-width:0;height:100dvh;min-height:0;grid-template-rows:54px minmax(0,1fr) 62px}
+  .top{padding:0 9px;gap:7px}
+  .brand{font-size:15px;letter-spacing:-.7px}
+  .sub{font-size:8px;letter-spacing:1.2px}
+  .top-actions{gap:6px}
+  .top-actions button{padding:8px 9px;font-size:12px}
+  .workspace{min-height:0;min-width:0;grid-template-columns:48px minmax(0,1fr)}
+  .rail{display:flex;padding:8px 3px;gap:9px}
+  .tool{width:39px;height:42px;font-size:18px}
+  .viewport{min-width:0;min-height:0}
+  .side{display:none}
+  .side.open{display:flex;position:absolute;z-index:8;right:0;top:54px;bottom:62px;width:min(290px,84vw);box-shadow:-12px 0 30px #28232155;overflow:auto}
+  .mobile-panels{display:inline-flex}
+  .bottom{min-width:0;padding:7px 9px;gap:6px}
+  .bottom .tools{gap:6px;min-width:0}
+  .bottom button{padding:8px 9px;font-size:10px;white-space:nowrap}
+  .timeline{gap:5px;min-width:0;flex:1;justify-content:flex-end}
+  .timeline input{width:clamp(52px,18vw,110px);min-width:0}
+  .status{display:none}
+  .viewport:before{inset:8px}
+  .viewport:after{inset:6% 4% 7%;box-shadow:5px 6px 0 #282321,8px 9px 0 var(--orange)}
+  .mode-pill{top:12px;left:12px;padding:6px 8px;font-size:9px}
+  .hint{left:12px;bottom:12px;max-width:calc(100% - 24px);font-size:10px}
 }
-@media(max-width:760px) and (orientation:portrait){
-  .app{height:100dvh}
-  .viewport{min-height:0}
+@media(max-width:390px){
+  .brand{font-size:13px}
+  .top-actions button{padding:7px 7px}
+  .bottom button{padding:7px 7px;font-size:9px}
+  .timeline input{width:48px}
 }
-
+@media(max-width:760px) and (orientation:landscape){
+  .app{grid-template-rows:48px minmax(0,1fr) 54px}
+  .side.open{top:48px;bottom:54px}
+  .rail{padding:5px 3px;gap:6px}
+  .tool{height:36px}
+  .bottom{padding:5px 8px}
+  .viewport:after{inset:4% 5%}
+}
 </style>
 </head>
 <body>
