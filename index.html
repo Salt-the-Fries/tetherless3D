@@ -251,7 +251,7 @@ function applyEraser(path){
   const eraseRadius=Math.max(.025,brushSize*.012);
   for(const object of [...group.children]){if(!object.userData.stroke||!object.userData.centerline)continue;
     const source=object.userData.centerline.map(p=>new THREE.Vector3(...p));if(!source.length)continue;
-    const curve=source.length>2?new THREE.CatmullRomCurve3(source):null;
+    const curve=source.length>=2?new THREE.CatmullRomCurve3(source):null;
     const samples=curve?curve.getPoints(Math.max(12,source.length*5)):source;
     const strokeRadius=Math.max(.012,(object.userData.style?.size??brushSize)*.008);
     const keep=[];let run=[];
