@@ -138,7 +138,7 @@ button.active{animation:stamp .24s ease-out}
 <header class="top"><div><div class="brand">TETHERLESS<span>3D</span></div><div class="sub">CUT PAPER · INK · IMAGINATION</div></div><div class="top-actions"><button id="panelBtn" class="mobile-panels">☷</button><button id="saveBtn">Save</button></div></header>
 <main class="workspace"><nav class="rail">
 <button class="tool active" id="drawTool" title="Draw">✎</button><button class="tool" id="selectTool" title="Select / transform">↗</button><button class="tool" id="undoBtn" title="Undo">↶</button><button class="tool" id="redoBtn" title="Redo">↷</button>
-</nav><section class="viewport"><canvas id="stage"></canvas><div id="brushCursor"></div><div class="mode-pill" id="modeLabel">3D DRAWING SPACE</div><div class="camera-dock" aria-label="Camera controls"><button id="zoomOut" title="Zoom out">−</button><button id="zoomIn" title="Zoom in">＋</button><button id="cameraReset" title="Reset camera">⌂</button></div><div class="hint" id="hint">One finger draws · Two fingers orbit + pinch to zoom · Right-drag orbits on desktop</div><div id="engineError" role="status" style="display:none;position:absolute;z-index:20;left:12px;right:12px;top:64px;padding:12px;background:#fff0e8;border:2px solid #9d3022;color:#6b2018;font-weight:800;white-space:pre-wrap">3D engine error</div></section>
+</nav><section class="viewport"><canvas id="stage"></canvas><div id="brushCursor"></div><div class="mode-pill" id="modeLabel">3D DRAWING SPACE</div><div class="camera-dock" aria-label="Camera controls"><button id="zoomOut" title="Zoom out">−</button><button id="zoomIn" title="Zoom in">＋</button><button id="cameraReset" title="Reset camera">⌂</button></div><div class="hint" id="hint">One finger draws on the view plane · Rotate the camera to change drawing direction · Two fingers orbit + pinch to zoom</div><div id="engineError" role="status" style="display:none;position:absolute;z-index:20;left:12px;right:12px;top:64px;padding:12px;background:#fff0e8;border:2px solid #9d3022;color:#6b2018;font-weight:800;white-space:pre-wrap">3D engine error</div></section>
 <aside class="side" id="side">
 <div><div class="section-head">Layers <button id="addLayer">＋</button></div><div id="layers"></div></div>
 <div><div class="section-head">Brush <small id="sizeVal">6 px</small></div>
@@ -185,9 +185,15 @@ function renderLayers(){const el=document.querySelector('#layers');el.innerHTML=
 function recordAction(action){undoStack.push(action);if(undoStack.length>500)undoStack.shift();redoStack=[];}
 function undoAction(){const action=undoStack.pop();if(!action)return;if(action.type==='add'){action.group.remove(action.object);}else if(action.type==='clear'){for(const object of action.objects)action.group.add(object);}redoStack.push(action);}
 function redoAction(){const action=redoStack.pop();if(!action)return;if(action.type==='add'){action.group.add(action.object);}else if(action.type==='clear'){for(const object of action.objects)action.group.remove(object);}undoStack.push(action);}
-// First reliable brush pass: draw on the studio's horizontal XZ work plane.
-const drawingPlane=new THREE.Plane(new THREE.Vector3(0,1,0),0);
+// Each stroke lives on a camera-facing plane through the current 3D orbit target.
+// Rotating the camera changes the plane, so strokes can be drawn in any view direction.
+const strokePlane=new THREE.Plane();
 const pointerRaycaster=new THREE.Raycaster();
+function prepareStrokePlane(){
+  const normal=new THREE.Vector3();
+  camera.getWorldDirection(normal);
+  strokePlane.setFromNormalAndCoplanarPoint(normal,orbit.target);
+}
 function pointFromEvent(e){
   const rect=canvas.getBoundingClientRect();
   if(!rect.width||!rect.height)return null;
@@ -195,7 +201,7 @@ function pointFromEvent(e){
   const y=-((e.clientY-rect.top)/rect.height)*2+1;
   pointerRaycaster.setFromCamera(new THREE.Vector2(x,y),camera);
   const point=new THREE.Vector3();
-  return pointerRaycaster.ray.intersectPlane(drawingPlane,point)?point:null;
+  return pointerRaycaster.ray.intersectPlane(strokePlane,point)?point:null;
 }
 function strokeMaterial(){return new THREE.MeshStandardMaterial({color,transparent:opacity<1,opacity,roughness:.82,metalness:0});}
 function makeSquareStroke(points){
@@ -287,6 +293,7 @@ canvas.addEventListener('pointerdown',e=>{
     mouseCamera={id:e.pointerId,x:e.clientX,y:e.clientY,pan:e.button===1||e.shiftKey};
     try{canvas.setPointerCapture(e.pointerId);}catch{}return;
   }else if(tool!=='draw'||transform.dragging||gizmoDragging)return;
+  prepareStrokePlane();
   const point=pointFromEvent(e);if(!point)return;
   drawing=true;currentPoints=[point];updateStrokePreview();
 });
@@ -340,7 +347,7 @@ canvas.addEventListener('pointercancel',cancelPointer);
 canvas.addEventListener('lostpointercapture',cancelPointer);
 window.addEventListener('blur',()=>{activePointers.clear();gestureState=null;mouseCamera=null;if(drawing)finishStroke(false);});
 document.addEventListener('visibilitychange',()=>{if(document.hidden){activePointers.clear();gestureState=null;mouseCamera=null;if(drawing)finishStroke(false);}});
-function setTool(t){tool=t;document.querySelectorAll('.rail .tool').forEach(b=>b.classList.remove('active'));({draw:'#drawTool',select:'#selectTool',orbit:'#orbitTool'}[t]&&document.querySelector(({draw:'#drawTool',select:'#selectTool',orbit:'#orbitTool'}[t])).classList.add('active'));if(t==='draw'){transform.detach();orbit.enabled=false;}if(t==='select'){orbit.enabled=false;const g=layers[activeLayer].group;if(g.children.length)transform.attach(g);}if(t==='orbit'){transform.detach();orbit.enabled=true;orbit.enableRotate=true;orbit.enablePan=true;orbit.enableZoom=true;}canvas.style.cursor=t==='draw'?'none':'grab';brushCursor.style.display='none';document.querySelector('#hint').textContent=t==='orbit'?('Right-drag to orbit · Shift/right-drag or middle-drag to pan · Wheel to zoom'):'One finger draws · Two fingers orbit + pinch to zoom · Right-drag orbits on desktop';}
+function setTool(t){tool=t;document.querySelectorAll('.rail .tool').forEach(b=>b.classList.remove('active'));({draw:'#drawTool',select:'#selectTool',orbit:'#orbitTool'}[t]&&document.querySelector(({draw:'#drawTool',select:'#selectTool',orbit:'#orbitTool'}[t])).classList.add('active'));if(t==='draw'){transform.detach();orbit.enabled=false;}if(t==='select'){orbit.enabled=false;const g=layers[activeLayer].group;if(g.children.length)transform.attach(g);}if(t==='orbit'){transform.detach();orbit.enabled=true;orbit.enableRotate=true;orbit.enablePan=true;orbit.enableZoom=true;}canvas.style.cursor=t==='draw'?'none':'grab';brushCursor.style.display='none';document.querySelector('#hint').textContent=t==='orbit'?('Right-drag to orbit · Shift/right-drag or middle-drag to pan · Wheel to zoom'):'One finger draws on the view plane · Rotate the camera to change drawing direction · Two fingers orbit + pinch to zoom';}
 document.querySelector('#drawTool').onclick=()=>setTool('draw');document.querySelector('#selectTool').onclick=()=>setTool(tool==='select'?'draw':'select');
 function resetCamera(){orbit.target.set(0,0,0);camera.up.set(0,1,0);camera.position.set(9,7,12);camera.lookAt(0,0,0);camera.fov=42;camera.updateProjectionMatrix();orbit.update();}
 function cameraZoom(factor){const offset=camera.position.clone().sub(orbit.target);offset.multiplyScalar(factor);const distance=THREE.MathUtils.clamp(offset.length(),orbit.minDistance,orbit.maxDistance);offset.setLength(distance);camera.position.copy(orbit.target).add(offset);orbit.update();}document.querySelector('#zoomIn').onclick=()=>cameraZoom(.8);document.querySelector('#zoomOut').onclick=()=>cameraZoom(1.25);document.querySelector('#cameraReset').onclick=()=>{resetCamera();};
