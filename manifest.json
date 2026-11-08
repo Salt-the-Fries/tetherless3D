@@ -3,8 +3,8 @@
   "short_name": "Tetherless3D",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#171817",
-  "theme_color": "#171817",
+  "background_color": "#eee5d2",
+  "theme_color": "#f9efd9",
   "orientation": "any",
   "icons": [
     {
