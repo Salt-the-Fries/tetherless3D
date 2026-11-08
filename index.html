@@ -76,6 +76,15 @@ button.active{animation:stamp .24s ease-out}
 @media(prefers-reduced-motion:reduce){.comic-pop{display:none}.side.open{animation:none}}
 
 
+
+/* SCENE / UI STACKING FIX
+   The renderer stays beneath every viewport overlay. */
+.viewport{isolation:isolate}
+#stage{position:relative;z-index:1}
+.viewport:before,.viewport:after{z-index:0}
+.mode-pill,.hint{position:absolute;z-index:6}
+#brushCursor{z-index:7}
+
 /* DESKTOP-FIRST WORKSPACE ON EVERY SCREEN */
 @media(max-width:760px){
   html,body{width:100%;height:100%;overflow:auto;overscroll-behavior:auto;-webkit-text-size-adjust:100%;touch-action:pan-x pan-y pinch-zoom}
