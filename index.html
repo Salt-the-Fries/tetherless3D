@@ -218,8 +218,10 @@ function strokeMaterial(style={}){const strokeColor=style.color??color,strokeOpa
 function readBrushContact(e){
   const isStylus=e.pointerType==='pen',w=Math.max(1,Number(e.width)||1),h=Math.max(1,Number(e.height)||1);
   const ratio=THREE.MathUtils.clamp(w/Math.max(w,h),.18,1);
-  const width=THREE.MathUtils.clamp(1+(1-ratio)*contactSensitivity,.2,2.4);
-  const height=THREE.MathUtils.clamp(1+(ratio-1)*contactSensitivity,.2,2.4);
+  const contactScale=e.pointerType==='touch'?THREE.MathUtils.clamp(Math.sqrt(w*h)/12,.5,1.8):1;
+  const stylusPressure=isStylus&&Number.isFinite(e.pressure)&&e.pressure>0?THREE.MathUtils.clamp(.35+e.pressure*1.3,.35,1.65):1;
+  const width=THREE.MathUtils.clamp(contactScale*stylusPressure*(1+(1-ratio)*contactSensitivity),.2,2.4);
+  const height=THREE.MathUtils.clamp(contactScale*stylusPressure*(1+(ratio-1)*contactSensitivity),.2,2.4);
   const tiltX=isStylus?(Number(e.tiltX)||0)*Math.PI/180:0,tiltY=isStylus?(Number(e.tiltY)||0)*Math.PI/180:0;
   return {width,height,angle:isStylus?Math.atan2(tiltY,tiltX):latestTouchAngle};
 }
@@ -455,7 +457,7 @@ canvas.addEventListener('pointermove',e=>{
   const point=pointFromEvent(e);if(!point)return;
   if(currentPoints[currentPoints.length-1].distanceTo(point)>Math.max(.018,brushSize*.0025)){
     currentPoints.push(point);if(activeStrokeTool==='draw')currentBrushSamples.push(readBrushContact(e));if(activeStrokeTool==='erase')addEraserScreenPoint(e);
-    if(currentPoints.length>700){const compact=currentPoints.filter((_,i)=>i%2===0);if(compact[compact.length-1]!==currentPoints[currentPoints.length-1])compact.push(currentPoints[currentPoints.length-1]);currentPoints=compact;}
+    if(currentPoints.length>700){const compact=currentPoints.filter((_,i)=>i%2===0),compactSamples=currentBrushSamples.filter((_,i)=>i%2===0);if(compact[compact.length-1]!==currentPoints[currentPoints.length-1]){compact.push(currentPoints[currentPoints.length-1]);if(currentBrushSamples.length)compactSamples.push(currentBrushSamples[currentBrushSamples.length-1]);}currentPoints=compact;currentBrushSamples=compactSamples;}
     scheduleStrokePreview();
   }
 });
