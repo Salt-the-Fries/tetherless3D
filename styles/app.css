@@ -187,5 +187,19 @@ button.active{animation:stamp .24s ease-out}
 #stabilization{accent-color:var(--orange)}
 .control-note{display:block;color:#75695b;font-size:10px;font-weight:650;line-height:1.35;margin-top:3px}
 
-/* Material texture and tip profile controls */
-#brushTip{width:100%;min-height:36px;padding:7px 9px;border:2px solid var(--ink);border-radius:8px;background:#fff8e9;color:var(--ink);font:inherit;font-weight:800;box-shadow:2px 2px 0 var(--ink)}
+
+/* Brush controls: custom tactile selects that match the dark studio UI */
+.control select{
+  appearance:none;-webkit-appearance:none;width:100%;min-height:39px;
+  padding:8px 36px 8px 11px;border:1px solid var(--line);border-radius:11px;
+  color:var(--ink);background-color:var(--panel2);
+  font:700 12px/1.2 Inter,ui-sans-serif,system-ui,sans-serif;
+  box-shadow:0 2px 0 #10120f;cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23c8f36a' stroke-width='2.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 11px center;
+  transition:border-color .15s,background-color .15s,transform .15s,box-shadow .15s;
+}
+.control select:hover{border-color:#69745a;background-color:#30352d}
+.control select:focus-visible{outline:2px solid var(--lime);outline-offset:2px;border-color:var(--lime)}
+.control select:active{transform:translateY(1px);box-shadow:0 1px 0 #10120f}
+.control select option{background:#22251f;color:var(--ink)}
