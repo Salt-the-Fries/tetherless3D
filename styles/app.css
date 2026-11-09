@@ -128,7 +128,7 @@ button.active{animation:stamp .24s ease-out}
   .bottom button{padding:7px 7px;font-size:9px}
   .timeline input{width:48px}
 }
-@media(max-width:760px) and (orientation:landscape){
+@media (orientation:landscape) and (pointer:coarse){
   .app{grid-template-rows:48px minmax(0,1fr) 54px}
   .side.open{top:48px;bottom:54px}
   .rail{padding:5px 3px;gap:6px}
@@ -140,7 +140,7 @@ button.active{animation:stamp .24s ease-out}
 /* COLLAPSIBLE LANDSCAPE TOOL RAIL */
 .rail .tool[hidden]{display:none!important}
 .rail-more{display:none}
-@media(max-width:760px) and (orientation:landscape){
+@media (orientation:landscape) and (pointer:coarse){
 .rail{overflow:visible}
 .rail .rail-more{display:flex;align-items:center;justify-content:center;flex:none;cursor:pointer;touch-action:manipulation;position:relative;z-index:20}
 .rail.collapsed .tool:not(#drawTool):not(#railMore){display:none!important}
