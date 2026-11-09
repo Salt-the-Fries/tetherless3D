@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tetherless3D · Illustration Renderer Lab</title>
+<style>
+:root{color-scheme:dark;--bg:#171817;--panel:#222520;--line:#393d37;--ink:#f1eee4;--muted:#a4a99d;--lime:#c8f36a}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px system-ui,sans-serif}header{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}.brand{font-weight:900;letter-spacing:.12em}.brand span{color:var(--lime)}.sub{font-size:11px;color:var(--muted);letter-spacing:.08em}
+main{display:grid;grid-template-columns:minmax(0,1fr) 300px;min-height:calc(100dvh - 58px)}#view{min-height:560px}canvas{width:100%;height:100%;display:block;touch-action:none}aside{background:var(--panel);border-left:1px solid var(--line);padding:16px;display:flex;flex-direction:column;gap:13px}
+label{display:grid;gap:6px;color:var(--muted);font-size:12px}select,button,input{font:inherit;color:var(--ink);background:#292c28;border:1px solid var(--line);border-radius:9px;padding:9px}input[type=range]{padding:0;accent-color:var(--lime)}button{cursor:pointer;font-weight:700}button:active{transform:scale(.98) translateY(1px)}.note{border:1px solid var(--line);border-radius:10px;padding:10px;color:var(--muted);font-size:12px;line-height:1.5}#readout{color:var(--lime);font-variant-numeric:tabular-nums}
+@media(max-width:760px){main{grid-template-columns:1fr}#view{min-height:54vh}aside{border:0;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr}.note{grid-column:1/-1}}
+</style></head><body>
+<header><div><div class="brand">TETHERLESS<span>3D</span> / ILLUSTRATION RENDERER LAB</div><div class="sub">SAME 3D STROKE · FIVE SHADING LANGUAGES</div></div><div class="sub">EXPERIMENTAL · PRODUCTION ENGINE UNTOUCHED</div></header>
+<main><section id="view"><canvas id="stage"></canvas></section><aside>
+<label>Rendering style<select id="style"><option value="real">Realistic lighting (control)</option><option value="two">Two-tone cel shading</option><option value="three">Three-tone cel shading</option><option value="dots">Cel + halftone screentone</option><option value="hatch">Cel + manga hatching</option></select></label>
+<label>Base color<input id="color" type="color" value="#e9a6a0"></label>
+<label>Shadow strength <output id="shadowOut">0.68</output><input id="shadow" type="range" min=".1" max="1" step=".01" value=".68"></label>
+<label>Screentone density <output id="densityOut">34</output><input id="density" type="range" min="8" max="90" step="1" value="34"></label>
+<label>Stroke thickness <output id="depthOut">0.18</output><input id="depth" type="range" min=".04" max=".5" step=".01" value=".18"></label>
+<label>Camera<select id="viewMode"><option value="orbit">Orbit freely</option><option value="front">Front</option><option value="side">Side / edge-on</option><option value="top">Top</option></select></label>
+<button id="reset">Reset camera</button>
+<div class="note"><b>Look for this:</b> the same geometry should feel completely different when only the rendering style changes. Tone bands should follow surface lighting. Dots and hatching should appear mainly in shadow regions, not as random decoration.</div>
+<div class="note">This prototype uses a custom shader with lighting-based tone quantization and procedural screen-space patterns. It is a renderer study, not yet integrated into the main brush engine.</div><div id="readout">Renderer ready</div>
+</aside></main>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+const canvas=document.querySelector('#stage'),view=document.querySelector('#view');const renderer=new THREE.WebGLRenderer({canvas,antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.6));renderer.setClearColor(0x171817);
+const scene=new THREE.Scene();scene.fog=new THREE.Fog(0x171817,22,50);const camera=new THREE.PerspectiveCamera(42,1,.1,100);camera.position.set(9,7,13);const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.target.set(0,0,0);
+scene.add(new THREE.HemisphereLight(0xffffff,0x444455,1.2));const grid=new THREE.GridHelper(18,18,0x59604e,0x30352f);grid.position.y=-2.7;scene.add(grid);
+const curve=new THREE.CatmullRomCurve3([new THREE.Vector3(-3.6,-.7,-1.2),new THREE.Vector3(-2.4,.9,.8),new THREE.Vector3(-.9,1.7,1.6),new THREE.Vector3(.1,.2,1),new THREE.Vector3(1.1,-1,-.5),new THREE.Vector3(2.3,.4,-1.6),new THREE.Vector3(2.9,1.3,-.1),new THREE.Vector3(1.5,1.8,1.8),new THREE.Vector3(.1,.8,2)],false,'catmullrom',.45);
+const uniforms={uBase:{value:new THREE.Color('#e9a6a0')},uStyle:{value:0},uShadow:{value:.68},uDensity:{value:34},uLight:{value:new THREE.Vector3(.45,.8,.55).normalize()},uAmbient:{value:.28}};
+const material=new THREE.ShaderMaterial({uniforms,vertexShader:`
+varying vec3 vNormal;varying vec3 vWorld;varying vec2 vUv;
+void main(){vUv=uv;vec4 world=modelMatrix*vec4(position,1.0);vWorld=world.xyz;vNormal=normalize(mat3(modelMatrix)*normal);gl_Position=projectionMatrix*viewMatrix*world;}
+`,fragmentShader:`
+uniform vec3 uBase;uniform int uStyle;uniform float uShadow;uniform float uDensity;uniform vec3 uLight;uniform float uAmbient;
+varying vec3 vNormal;varying vec3 vWorld;varying vec2 vUv;
+float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
+float dots(vec2 p,float scale){vec2 q=p*scale;vec2 cell=floor(q);vec2 f=fract(q)-.5;float r=.12+.25*(1.0-clamp(dot(uBase,vec3(.333)),0.0,1.0));float radius=sqrt(r)*.42;return 1.0-smoothstep(radius-.025,radius+.025,length(f));}
+float hatch(vec2 p,float scale){vec2 q=p*scale;float a=abs(fract((q.x+q.y)*.72)-.5);float b=abs(fract((q.x-q.y)*.72)-.5);return 1.0-smoothstep(.035,.09,min(a,b));}
+void main(){
+ vec3 N=normalize(gl_FrontFacing?vNormal:-vNormal);float lam=max(dot(N,normalize(uLight)),0.0);float light=uAmbient+(1.0-uAmbient)*lam;
+ vec3 col=uBase*mix(1.0,1.0-uShadow,1.0-clamp(light,0.0,1.0));
+ if(uStyle==1){float band=light>.53?1.0:.42;col=uBase*mix(1.0,1.0-uShadow,1.0-band);}
+ if(uStyle>=2){float band=light>.72?1.0:(light>.36?.66:.34);col=uBase*mix(1.0,1.0-uShadow,1.0-band);}
+ vec2 screenPattern=gl_FragCoord.xy/max(uDensity,1.0);
+ if(uStyle==3&&light<.68){float d=dots(screenPattern,uDensity);col=mix(col,vec3(.12,.10,.13),d*.62*(1.0-light));}
+ if(uStyle==4&&light<.72){float h=hatch(screenPattern,uDensity*.72);col=mix(col,vec3(.12,.10,.13),h*.58*(1.0-light));}
+ if(uStyle==0){col=uBase*(.24+.92*light);}
+ gl_FragColor=vec4(col,1.0);
+ #include <tonemapping_fragment>
+ #include <colorspace_fragment>
+}`});
+const geo=new THREE.BufferGeometry(),segments=260,sides=36,frames=curve.computeFrenetFrames(segments,false),p=[],uv=[],ids=[];const thickness=.18;
+for(let i=0;i<=segments;i++){const t=i/segments,pt=curve.getPointAt(t),n=frames.normals[i],b=frames.binormals[i],taper=Math.pow(Math.sin(Math.PI*t),.38);for(let j=0;j<sides;j++){const a=j/sides*Math.PI*2,c=Math.cos(a),s=Math.sin(a);const broad=.62*taper*(1+.035*Math.sin(t*105));const deep=thickness*taper;const q=pt.clone().addScaledVector(n,c*broad).addScaledVector(b,s*deep);p.push(q.x,q.y,q.z);uv.push(t,j/sides);}}
+for(let i=0;i<segments;i++)for(let j=0;j<sides;j++){const a=i*sides+j,b=i*sides+(j+1)%sides,c=(i+1)*sides+(j+1)%sides,d=(i+1)*sides+j;ids.push(a,b,d,b,c,d);}
+geo.setAttribute('position',new THREE.Float32BufferAttribute(p,3));geo.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));geo.setIndex(ids);geo.computeVertexNormals();const mesh=new THREE.Mesh(geo,material);scene.add(mesh);
+function update(){const s=document.querySelector('#style').value;uniforms.uStyle.value=({real:0,two:1,three:2,dots:3,hatch:4})[s];uniforms.uBase.value.set(document.querySelector('#color').value);uniforms.uShadow.value=+document.querySelector('#shadow').value;uniforms.uDensity.value=+document.querySelector('#density').value;document.querySelector('#shadowOut').value=uniforms.uShadow.value.toFixed(2);document.querySelector('#densityOut').value=uniforms.uDensity.value;document.querySelector('#readout').textContent='Mode: '+s+' · shadow '+uniforms.uShadow.value.toFixed(2)+' · tone scale '+uniforms.uDensity.value;}
+for(const id of ['style','color','shadow','density'])document.querySelector('#'+id).addEventListener('input',update);document.querySelector('#depth').addEventListener('input',e=>{const d=+e.target.value;document.querySelector('#depthOut').value=d.toFixed(2);for(let i=0;i<=segments;i++)for(let j=0;j<sides;j++){const k=(i*sides+j)*3;const t=i/segments,a=j/sides*Math.PI*2,pt=curve.getPointAt(t),n=frames.normals[i],b=frames.binormals[i],taper=Math.pow(Math.sin(Math.PI*t),.38);const q=pt.clone().addScaledVector(n,Math.cos(a)*.62*taper).addScaledVector(b,Math.sin(a)*d*taper);p[k]=q.x;p[k+1]=q.y;p[k+2]=q.z;}geo.attributes.position.needsUpdate=true;geo.computeVertexNormals();});
+function resize(){const w=view.clientWidth,h=view.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}new ResizeObserver(resize).observe(view);resize();
+document.querySelector('#viewMode').addEventListener('change',e=>{const m=e.target.value;if(m==='front')camera.position.set(0,0,20);if(m==='side')camera.position.set(20,0,0);if(m==='top')camera.position.set(0,20,.001);if(m==='orbit')camera.position.set(9,7,13);controls.target.set(0,0,0);camera.lookAt(0,0,0);controls.update();});document.querySelector('#reset').addEventListener('click',()=>{document.querySelector('#viewMode').value='orbit';camera.position.set(9,7,13);controls.target.set(0,0,0);controls.update();});update();function animate(){requestAnimationFrame(animate);controls.update();renderer.render(scene,camera);}animate();
+</script></body></html>
