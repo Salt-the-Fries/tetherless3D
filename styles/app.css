@@ -159,3 +159,6 @@ button.active{animation:stamp .24s ease-out}
 .rail.collapsible .rail-more:active{transform:translateY(2px) scale(.96)}
 .rail.collapsible.expanded .rail-more{background:#ff9473}
 .rail.collapsible .tool[hidden]{display:none!important}
+
+/* Keep the toggle visible even before the toolbar controller initializes. */
+.rail .rail-more{display:flex!important;visibility:visible!important;opacity:1!important;flex:0 0 39px!important;min-height:42px!important;pointer-events:auto!important}
