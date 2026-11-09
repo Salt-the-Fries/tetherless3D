@@ -151,3 +151,11 @@ button.active{animation:stamp .24s ease-out}
 .rail-more{display:none!important}
 .rail.compact-landscape .rail-more{display:flex!important;align-items:center;justify-content:center;flex:none;position:relative;z-index:20}
 .rail .tool[hidden]{display:none!important}
+
+
+/* COLLAPSIBLE TOOL RAIL: available in portrait and landscape. */
+.rail.collapsible{overflow:visible}
+.rail.collapsible .rail-more{display:flex!important;align-items:center;justify-content:center;flex:none;cursor:pointer;touch-action:manipulation;position:relative;z-index:20}
+.rail.collapsible .rail-more:active{transform:translateY(2px) scale(.96)}
+.rail.collapsible.expanded .rail-more{background:#ff9473}
+.rail.collapsible .tool[hidden]{display:none!important}
