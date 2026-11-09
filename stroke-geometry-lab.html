@@ -1,92 +1,47 @@
 <!doctype html>
-<html lang="en">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Tetherless3D · Painterly Stroke Lab</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tetherless3D · Round Brush Orbit Test</title>
 <style>
-:root{color-scheme:dark;--bg:#171817;--panel:#222520;--line:#393d37;--ink:#f1eee4;--muted:#a4a99d;--lime:#c8f36a;--orange:#ff9e68}
+:root{color-scheme:dark;--bg:#171817;--panel:#222520;--line:#393d37;--ink:#f1eee4;--muted:#a4a99d;--lime:#c8f36a}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px system-ui,sans-serif}
-header{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid var(--line);gap:12px;flex-wrap:wrap}
-.brand{font-weight:900;letter-spacing:.12em}.brand span{color:var(--lime)}.sub{color:var(--muted);font-size:11px;letter-spacing:.08em}
-main{display:grid;grid-template-columns:minmax(0,1fr) 290px;min-height:calc(100dvh - 58px)}
-#view{position:relative;min-height:560px}canvas{display:block;width:100%;height:100%;touch-action:none}
-aside{padding:16px;background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;gap:14px}
-label{display:grid;gap:7px;color:var(--muted);font-size:12px}input,select,button{font:inherit;color:var(--ink);background:#292c28;border:1px solid var(--line);border-radius:10px;padding:9px}
-input[type=range]{padding:0;accent-color:var(--lime)}button{cursor:pointer;font-weight:700}button:active{transform:translateY(1px) scale(.98)}
-.note{padding:11px;border:1px solid var(--line);border-radius:10px;color:var(--muted);font-size:12px;line-height:1.5}
-#readout{font-variant-numeric:tabular-nums;color:var(--lime)}
-@media(max-width:760px){main{grid-template-columns:1fr}#view{min-height:55vh}aside{border-left:0;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr}.note{grid-column:1/-1}}
+header{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}.brand{font-weight:900;letter-spacing:.12em}.brand span{color:var(--lime)}.sub{font-size:11px;color:var(--muted);letter-spacing:.08em}
+main{display:grid;grid-template-columns:minmax(0,1fr) 290px;min-height:calc(100dvh - 58px)}#view{min-height:560px}canvas{display:block;width:100%;height:100%;touch-action:none}
+aside{padding:16px;background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;gap:14px}label{display:grid;gap:7px;color:var(--muted);font-size:12px}
+input,button{font:inherit;color:var(--ink);background:#292c28;border:1px solid var(--line);border-radius:10px;padding:9px}input[type=range]{padding:0;accent-color:var(--lime)}button{cursor:pointer;font-weight:700}button:active{transform:translateY(1px) scale(.98)}
+.note{padding:11px;border:1px solid var(--line);border-radius:10px;color:var(--muted);font-size:12px;line-height:1.5}#readout{color:var(--lime);font-variant-numeric:tabular-nums}
+@media(max-width:760px){main{grid-template-columns:1fr}#view{min-height:55vh}aside{border:0;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr}.note{grid-column:1/-1}}
 </style></head><body>
-<header><div><div class="brand">TETHERLESS<span>3D</span> / PAINTERLY STROKE LAB</div><div class="sub">SAME CURVE · DIFFERENT STROKE CONSTRUCTION</div></div><div class="sub">EXPERIMENTAL · MAIN STUDIO UNTOUCHED</div></header>
+<header><div><div class="brand">TETHERLESS<span>3D</span> / ROUND BRUSH ORBIT TEST</div><div class="sub">ONE STRAIGHT STROKE · ONE SIMPLE MATERIAL · ALL ANGLES</div></div><div class="sub">ISOLATED GEOMETRY TEST · NO SHADERS</div></header>
 <main><section id="view"><canvas id="stage"></canvas></section><aside>
-<label>Brush width <output id="widthOut">0.48</output><input id="width" type="range" min=".12" max=".9" step=".01" value=".48"></label>
-<label>Physical thickness <output id="depthOut">0.12</output><input id="depth" type="range" min=".015" max=".4" step=".005" value=".12"></label>
-<label>Stroke construction<select id="profile"><option value="all">Compare all three</option><option value="tube">Round tube (baseline)</option><option value="paint">Painterly broad-face</option><option value="taper">Tapered painterly</option></select></label>
-<label>Camera view<select id="viewMode"><option value="orbit">Orbit freely</option><option value="front">Front</option><option value="side">Side / edge-on</option><option value="top">Top</option></select></label>
+<label>Brush diameter <output id="widthOut">0.32</output><input id="width" type="range" min=".06" max=".8" step=".01" value=".32"></label>
+<label>Stroke length <output id="lengthOut">5.00</output><input id="length" type="range" min="1" max="9" step=".1" value="5"></label>
 <button id="reset">Reset camera</button>
-<div class="note"><b>What changed</b><br>The painterly samples have a broad face, rounded physical thickness, directional surface streaks and a changing silhouette. The tube is here as a control sample.</div>
-<div class="note"><b>Test this carefully</b><br>Orbit the swirl. Look for a visible painted face, tapered ends, subtle bristle marks and real thickness. From the side, it must not collapse into paper. From the front, it must not read as a cable.</div>
-<div class="note">This is a geometry/material experiment, not a reproduction of Feather's proprietary renderer.</div>
-<div id="readout">Painterly geometry preview ready</div>
+<div class="note"><b>Pass condition</b><br>Orbit all the way around the vertical stroke. It should remain a clean, solid black rounded brush mark with a constant diameter and round ends. No lighting bands, texture, halftone, hatching, or toon shading.</div>
+<div class="note"><b>Important distinction</b><br>This test isolates a true 3D round brush volume. From the side it should read as a 2D round brush mark. Looking directly down its length will naturally reveal its circular end.</div>
+<div id="readout">Straight round brush · unlit black</div>
 </aside></main>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <script type="module">
 import * as THREE from 'three';
 import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 const canvas=document.querySelector('#stage'),view=document.querySelector('#view');
-const renderer=new THREE.WebGLRenderer({canvas,antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.6));renderer.setClearColor(0x171817);
-const scene=new THREE.Scene();scene.fog=new THREE.Fog(0x171817,20,48);
-const camera=new THREE.PerspectiveCamera(42,1,.1,100);camera.position.set(9,7,13);
-const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.target.set(0,0,0);
-scene.add(new THREE.HemisphereLight(0xffffff,0x55515a,2));
-const key=new THREE.DirectionalLight(0xfff1d5,2.4);key.position.set(5,9,7);scene.add(key);
-const fill=new THREE.DirectionalLight(0x9bb8ff,.65);fill.position.set(-7,2,-5);scene.add(fill);
-const grid=new THREE.GridHelper(18,18,0x59604e,0x30352f);grid.position.y=-2.5;scene.add(grid);
-const curve=new THREE.CatmullRomCurve3([
- new THREE.Vector3(-3.3,-.7,-1.2),new THREE.Vector3(-2.3,.8,.8),new THREE.Vector3(-.9,1.6,1.5),
- new THREE.Vector3(.2,.25,1.0),new THREE.Vector3(1.0,-1.0,-.4),new THREE.Vector3(2.2,.3,-1.5),
- new THREE.Vector3(2.8,1.2,-.1),new THREE.Vector3(1.5,1.7,1.8),new THREE.Vector3(.1,.8,2.0)
-],false,'catmullrom',.45);
-const colors={tube:0x8bd9ff,paint:0xc8f36a,taper:0xff9e68},meshes={};let width=.48,depth=.12;
-function brushTexture(){
- const c=document.createElement('canvas');c.width=512;c.height=128;const x=c.getContext('2d');
- x.fillStyle='#ffffff';x.fillRect(0,0,512,128);
- for(let i=0;i<170;i++){const y=Math.random()*128,alpha=.035+Math.random()*.16;x.strokeStyle='rgba(45,31,18,'+alpha+')';x.lineWidth=.4+Math.random()*2.2;x.beginPath();x.moveTo(Math.random()*35,y);x.bezierCurveTo(150,y-5,330,y+5,512,y+(Math.random()-.5)*8);x.stroke();}
- const t=new THREE.CanvasTexture(c);t.wrapS=THREE.RepeatWrapping;t.wrapT=THREE.ClampToEdgeWrapping;t.colorSpace=THREE.SRGBColorSpace;return t;
-}
-const texture=brushTexture();
-function build(kind,offset){
- const segments=220,sides=32,frames=curve.computeFrenetFrames(segments,false),pos=[],uv=[],idx=[];
- for(let i=0;i<=segments;i++){
-  const t=i/segments,p=curve.getPointAt(t),n=frames.normals[i],b=frames.binormals[i];
-  const taper=kind==='taper'?Math.pow(Math.sin(Math.PI*t),.48):(.78+.22*Math.sin(Math.PI*t));
-  const edgeWave=kind==='tube'?0:(Math.sin(t*91)*.018+Math.sin(t*173+1.7)*.009);
-  for(let j=0;j<sides;j++){
-   const a=j/sides*Math.PI*2,c=Math.cos(a),s=Math.sin(a);
-   const exponent=kind==='tube'?2:5.5;
-   const sx=Math.sign(c)*Math.pow(Math.abs(c),2/exponent),sy=Math.sign(s)*Math.pow(Math.abs(s),2/exponent);
-   const w=width*taper*(1+edgeWave),d=depth*(kind==='tube'?1:.78)*taper;
-   const q=p.clone().addScaledVector(n,sx*w).addScaledVector(b,sy*d);q.x+=offset;
-   pos.push(q.x,q.y,q.z);uv.push(t,j/sides);
-  }
- }
- for(let i=0;i<segments;i++)for(let j=0;j<sides;j++){const a=i*sides+j,b=i*sides+(j+1)%sides,c=(i+1)*sides+(j+1)%sides,d=(i+1)*sides+j;idx.push(a,b,d,b,c,d);}
- const g=new THREE.BufferGeometry();g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));g.setIndex(idx);g.computeVertexNormals();
- const material=new THREE.MeshStandardMaterial({color:colors[kind],map:kind==='tube'?null:texture,roughness:kind==='tube'?.48:.94,metalness:0,side:THREE.DoubleSide});
- const mesh=new THREE.Mesh(g,material);mesh.userData.kind=kind;return mesh;
-}
-function rebuild(){
- for(const m of Object.values(meshes)){scene.remove(m);m.geometry.dispose();m.material.dispose();}for(const k of Object.keys(meshes))delete meshes[k];
- const offsets={tube:-4.4,paint:0,taper:4.4};for(const k of Object.keys(offsets)){meshes[k]=build(k,offsets[k]);scene.add(meshes[k]);}
- const selected=document.querySelector('#profile').value;for(const [k,m] of Object.entries(meshes))m.visible=selected==='all'||selected===k;
- document.querySelector('#readout').textContent='Width '+width.toFixed(2)+' · thickness '+depth.toFixed(3)+' · '+selected;
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.setClearColor(0xd8d6cf);
+const scene=new THREE.Scene();
+const camera=new THREE.PerspectiveCamera(38,1,.1,100);camera.position.set(7,3,9);
+const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=.075;controls.target.set(0,0,0);controls.minDistance=2;controls.maxDistance=24;
+const material=new THREE.MeshBasicMaterial({color:0x080808});
+let stroke;
+function rebuild(){if(stroke){scene.remove(stroke);stroke.geometry.dispose();}
+ const diameter=+document.querySelector('#width').value,length=+document.querySelector('#length').value;
+ // CapsuleGeometry's cylindrical section plus hemispherical ends makes a true round-ended brush volume.
+ const geometry=new THREE.CapsuleGeometry(diameter/2,Math.max(.001,length-diameter),16,64);
+ stroke=new THREE.Mesh(geometry,material);stroke.position.set(0,0,0);scene.add(stroke);
+ document.querySelector('#widthOut').value=diameter.toFixed(2);document.querySelector('#lengthOut').value=length.toFixed(2);
+ document.querySelector('#readout').textContent='Black unlit capsule · Ø '+diameter.toFixed(2)+' · length '+length.toFixed(2);
 }
 function resize(){const w=view.clientWidth,h=view.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
 new ResizeObserver(resize).observe(view);resize();
-document.querySelector('#width').addEventListener('input',e=>{width=+e.target.value;document.querySelector('#widthOut').value=width.toFixed(2);rebuild();});
-document.querySelector('#depth').addEventListener('input',e=>{depth=+e.target.value;document.querySelector('#depthOut').value=depth.toFixed(3);rebuild();});
-document.querySelector('#profile').addEventListener('change',rebuild);
-document.querySelector('#viewMode').addEventListener('change',e=>{const mode=e.target.value;controls.reset();if(mode==='front')camera.position.set(0,0,19);if(mode==='side')camera.position.set(19,0,0);if(mode==='top')camera.position.set(0,19,.001);if(mode==='orbit')camera.position.set(9,7,13);camera.lookAt(0,0,0);controls.target.set(0,0,0);controls.update();});
-document.querySelector('#reset').addEventListener('click',()=>{document.querySelector('#viewMode').value='orbit';camera.position.set(9,7,13);controls.target.set(0,0,0);controls.update();});
-rebuild();function animate(){requestAnimationFrame(animate);controls.update();renderer.render(scene,camera);}animate();
+document.querySelector('#width').addEventListener('input',rebuild);document.querySelector('#length').addEventListener('input',rebuild);
+function reset(){camera.position.set(7,3,9);controls.target.set(0,0,0);controls.update();}
+document.querySelector('#reset').addEventListener('click',reset);rebuild();
+function animate(){requestAnimationFrame(animate);controls.update();renderer.render(scene,camera);}animate();
 </script></body></html>
