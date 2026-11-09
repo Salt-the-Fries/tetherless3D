@@ -64,7 +64,7 @@ function pointFromEvent(e){
   const point=new THREE.Vector3();
   return pointerRaycaster.ray.intersectPlane(strokePlane,point)?point:null;
 }
-function strokeMaterial(style={}){const strokeColor=style.color??color,strokeOpacity=style.opacity??opacity,material=new THREE.MeshStandardMaterial({color:strokeColor,transparent:strokeOpacity<1,opacity:strokeOpacity,roughness:.82,metalness:0,depthWrite:strokeOpacity>=1,depthTest:true});return material;}
+function strokeMaterial(style={}){const strokeColor=style.color??color,strokeOpacity=style.opacity??opacity,material=new THREE.MeshBasicMaterial({color:strokeColor,transparent:strokeOpacity<1,opacity:strokeOpacity,depthWrite:strokeOpacity>=1,depthTest:true,toneMapped:false,side:THREE.DoubleSide});return material;}
 function sampleBrushVelocity(e,reset=false){
   const now=Number.isFinite(e.timeStamp)?e.timeStamp:performance.now();
   let speed=0;
