@@ -48,8 +48,7 @@
  const ids=['eraseTool','moveTool','selectTool','undoBtn','redoBtn'];
  if(!rail||!toggle)return;
  function isCompactLandscape(){
-  const touch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
-  return touch && window.innerWidth>window.innerHeight;
+  return window.innerWidth>window.innerHeight;
  }
  function setExpanded(expanded){
   const compact=isCompactLandscape();
