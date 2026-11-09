@@ -34,7 +34,40 @@ let activeLayer=0,tool='draw',color='#d9f78a',brushSize=6,eraserRadiusPx=6,opaci
 const layers=[];
 function addLayer(name='Layer '+(layers.length+1)){const group=new THREE.Group();group.name=name;root.add(group);layers.push({name,group,visible:true});activeLayer=layers.length-1;renderLayers();}
 addLayer('Starfish');addLayer('Details');activeLayer=0;
-function renderLayers(){const el=document.querySelector('#layers');el.innerHTML='';layers.forEach((l,i)=>{const row=document.createElement('div');row.className='layer'+(i===activeLayer?' active':'');row.innerHTML='<span class="dot"></span><span></span><button title="Visibility">◉</button>';row.children[1].textContent=l.name;row.addEventListener('click',e=>{if(e.target.tagName==='BUTTON'){l.visible=!l.visible;l.group.visible=l.visible;e.target.textContent=l.visible?'◉':'○';return;}activeLayer=i;renderLayers();if(tool==='select'&&l.group.children.length)transform.attach(l.group);if(tool==='move')selectStroke(null);});el.append(row);});}
+function renderLayers(){
+ const el=document.querySelector('#layers');el.innerHTML='';
+ layers.forEach((l,i)=>{
+  const row=document.createElement('div');row.className='layer'+(i===activeLayer?' active':'');
+  const dot=document.createElement('span');dot.className='dot';
+  const name=document.createElement('span');name.className='layer-name';name.textContent=l.name;name.title='Tap the pencil to rename this layer';
+  const rename=document.createElement('button');rename.className='layer-rename';rename.type='button';rename.title='Rename layer';rename.setAttribute('aria-label','Rename '+l.name);rename.textContent='✎';
+  const visibility=document.createElement('button');visibility.className='layer-visibility';visibility.type='button';visibility.title='Toggle visibility';visibility.setAttribute('aria-label','Toggle layer visibility');visibility.textContent=l.visible?'◉':'○';
+  function beginRename(){
+   if(row.querySelector('input'))return;
+   const input=document.createElement('input');input.className='layer-name-input';input.type='text';input.maxLength=48;input.value=l.name;input.setAttribute('aria-label','Layer name');
+   name.replaceWith(input);rename.hidden=true;visibility.hidden=true;input.focus();input.select();
+   let finished=false;
+   const finish=save=>{
+    if(finished)return;finished=true;
+    const next=input.value.trim();
+    if(save&&next){l.name=next;l.group.name=next;}
+    renderLayers();
+   };
+   input.addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();finish(true);}if(event.key==='Escape'){event.preventDefault();finish(false);}});
+   input.addEventListener('blur',()=>finish(true));
+   input.addEventListener('click',event=>event.stopPropagation());
+  }
+  rename.addEventListener('click',event=>{event.stopPropagation();beginRename();});
+  visibility.addEventListener('click',event=>{event.stopPropagation();l.visible=!l.visible;l.group.visible=l.visible;visibility.textContent=l.visible?'◉':'○';});
+  row.addEventListener('click',event=>{
+   if(event.target.closest('button,input'))return;
+   activeLayer=i;renderLayers();
+   if(tool==='select'&&l.group.children.length)transform.attach(l.group);
+   if(tool==='move')selectStroke(null);
+  });
+  row.append(dot,name,rename,visibility);el.append(row);
+ });
+}
 // History stores object references, never full serialized copies of the entire scene.
 function recordAction(action){undoStack.push(action);if(undoStack.length>500)undoStack.shift();redoStack=[];}
 function applyStrokeTransform(a,forward){const v=forward?a.after:a.before;a.object.position.fromArray(v.position);a.object.quaternion.fromArray(v.quaternion);a.object.scale.fromArray(v.scale);}
