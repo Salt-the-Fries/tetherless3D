@@ -64,7 +64,7 @@ function pointFromEvent(e){
   const point=new THREE.Vector3();
   return pointerRaycaster.ray.intersectPlane(strokePlane,point)?point:null;
 }
-function strokeMaterial(style={}){const strokeColor=style.color??color,strokeOpacity=style.opacity??opacity,material=new THREE.MeshBasicMaterial({color:strokeColor,transparent:strokeOpacity<1,opacity:strokeOpacity,depthWrite:strokeOpacity>=1,depthTest:true,toneMapped:false,side:THREE.DoubleSide});return material;}
+function strokeMaterial(style={}){const strokeColor=style.color??color,strokeOpacity=style.opacity??opacity;return new THREE.MeshStandardMaterial({color:strokeColor,transparent:strokeOpacity<1,opacity:strokeOpacity,roughness:.82,metalness:0,depthWrite:strokeOpacity>=1,depthTest:true});}
 function sampleBrushVelocity(e,reset=false){
   const now=Number.isFinite(e.timeStamp)?e.timeStamp:performance.now();
   let speed=0;
@@ -385,4 +385,4 @@ function resize(){const w=viewport.clientWidth,h=viewport.clientHeight;renderer.
 resizeEraserPreview();new ResizeObserver(resize).observe(viewport);
 function animate(now){requestAnimationFrame(animate);orbit.update();if(playing&&keyframes.length>1){const duration=Math.max(1,...keyframes.map(k=>k.time));const t=((now-playStart)/1000)%duration;for(let li=0;li<layers.length;li++){const track=keyframes.filter(k=>k.layer===li).sort((a,b)=>a.time-b.time);if(!track.length)continue;let a=track[0],b=track[track.length-1];for(let j=0;j<track.length-1;j++){if(t>=track[j].time&&t<=track[j+1].time){a=track[j];b=track[j+1];break;}}const span=Math.max(.0001,b.time-a.time),f=THREE.MathUtils.clamp((t-a.time)/span,0,1),g=layers[li].group;g.position.fromArray(a.position).lerp(new THREE.Vector3(...b.position),f);g.rotation.set(...a.rotation.map((v,i)=>THREE.MathUtils.lerp(v,b.rotation[i],f)));g.scale.fromArray(a.scale).lerp(new THREE.Vector3(...b.scale),f);}}renderer.render(scene,camera);}
 requestAnimationFrame(animate);renderLayers();
-if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).then(reg=>reg.update()).catch(()=>{}));
