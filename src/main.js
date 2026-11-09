@@ -42,6 +42,16 @@ function renderLayers(){
   const name=document.createElement('span');name.className='layer-name';name.textContent=l.name;name.title='Tap the pencil to rename this layer';
   const rename=document.createElement('button');rename.className='layer-rename';rename.type='button';rename.title='Rename layer';rename.setAttribute('aria-label','Rename '+l.name);rename.textContent='✎';
   const visibility=document.createElement('button');visibility.className='layer-visibility';visibility.type='button';visibility.title='Toggle visibility';visibility.setAttribute('aria-label','Toggle layer visibility');visibility.textContent=l.visible?'◉':'○';
+  const remove=document.createElement('button');remove.className='layer-delete';remove.type='button';remove.title='Delete layer';remove.setAttribute('aria-label','Delete '+l.name);remove.textContent='×';remove.disabled=layers.length===1;
+  remove.addEventListener('click',event=>{event.stopPropagation();if(layers.length===1){alert('Keep at least one layer in your project.');return;}if(!confirm('Delete the layer "'+l.name+'" and all of its contents? This cannot be undone.'))return;
+   if(selectedStroke&&l.group.children.includes(selectedStroke)){highlightStroke(selectedStroke,false);selectedStroke=null;transform.detach();}
+   if(transform.object===l.group)transform.detach();
+   root.remove(l.group);layers.splice(i,1);
+   keyframes=keyframes.filter(frame=>frame.layer!==i).map(frame=>({...frame,layer:frame.layer>i?frame.layer-1:frame.layer}));
+   if(activeLayer===i)activeLayer=Math.min(i,layers.length-1);else if(activeLayer>i)activeLayer--;
+   undoStack=[];redoStack=[];renderLayers();
+   document.querySelector('#frameInfo').textContent=keyframes.length+' keyframes · '+layers.length+' layers';
+  });
   function beginRename(){
    if(row.querySelector('input'))return;
    const input=document.createElement('input');input.className='layer-name-input';input.type='text';input.maxLength=48;input.value=l.name;input.setAttribute('aria-label','Layer name');
@@ -65,7 +75,7 @@ function renderLayers(){
    if(tool==='select'&&l.group.children.length)transform.attach(l.group);
    if(tool==='move')selectStroke(null);
   });
-  row.append(dot,name,rename,visibility);el.append(row);
+  row.append(dot,name,rename,visibility,remove);el.append(row);
  });
 }
 // History stores object references, never full serialized copies of the entire scene.
