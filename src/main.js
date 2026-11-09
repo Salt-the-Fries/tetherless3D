@@ -30,7 +30,7 @@ transform.pointerHover=function(pointer){const raycaster=this.getRaycaster();ray
 const originalTransformUpdate=transform.updateMatrixWorld.bind(transform);
 transform.updateMatrixWorld=function(force){if(this.object&&this.object.parent===null){const stale=this.object;this.detach();if(selectedStroke===stale)selectedStroke=null;}return originalTransformUpdate(force);};transform.addEventListener('mouseDown',()=>{if(transform.object)transformBefore={position:transform.object.position.toArray(),quaternion:transform.object.quaternion.toArray(),scale:transform.object.scale.toArray()};});transform.addEventListener('mouseUp',()=>{if(transform.object&&transformBefore){const object=transform.object,after={position:object.position.toArray(),quaternion:object.quaternion.toArray(),scale:object.scale.toArray()};if(JSON.stringify(transformBefore)!==JSON.stringify(after))recordAction({type:'transform',object,before:transformBefore,after});transformBefore=null;}});transform.addEventListener('dragging-changed',e=>{gizmoDragging=e.value;orbit.enabled=false;if(gizmoDragging){if(drawing)finishStroke(false);activePointers.clear();gestureState=null;mouseCamera=null;}});
 const orbit=new (await import('three/addons/controls/OrbitControls.js')).OrbitControls(camera,renderer.domElement);orbit.enableDamping=true;orbit.dampingFactor=.08;orbit.enableZoom=true;orbit.enablePan=true;orbit.enableRotate=true;orbit.minDistance=2.5;orbit.maxDistance=40;orbit.zoomSpeed=.9;orbit.panSpeed=.85;orbit.rotateSpeed=.75;orbit.target.set(0,0,0);orbit.enabled=false;
-let activeLayer=0,tool='draw',color='#d9f78a',brushSize=6,eraserRadiusPx=6,opacity=1,velocitySensitivity=1,endTaper=.35,brushPreset='ink',textureAmount=.45,drawing=false,currentPoints=[],currentBrushSamples=[],currentLine=null,undoStack=[],redoStack=[],keyframes=[],playing=false,playStart=0;let lastBrushPointer=null,smoothedBrushSpeed=0;
+let activeLayer=0,tool='draw',color='#d9f78a',brushSize=6,eraserRadiusPx=6,opacity=1,velocitySensitivity=1,brushStabilization=.35,endTaper=.35,brushPreset='ink',textureAmount=.45,drawing=false,currentPoints=[],currentBrushSamples=[],currentLine=null,undoStack=[],redoStack=[],keyframes=[],playing=false,playStart=0;let lastBrushPointer=null,smoothedBrushSpeed=0,stabilizedBrushPoint=null;
 const layers=[];
 function addLayer(name='Layer '+(layers.length+1)){const group=new THREE.Group();group.name=name;root.add(group);layers.push({name,group,visible:true});activeLayer=layers.length-1;renderLayers();}
 addLayer('Starfish');addLayer('Details');activeLayer=0;
@@ -179,7 +179,7 @@ let selectedStroke=null,transformBefore=null;
 function highlightStroke(o,on){if(!o?.material?.emissive)return;if(on){if(o.userData.selectionEmissive===undefined)o.userData.selectionEmissive=o.material.emissive.getHex();o.material.emissive.setHex(0xff684d);}else if(o.userData.selectionEmissive!==undefined){o.material.emissive.setHex(o.userData.selectionEmissive);delete o.userData.selectionEmissive;}}
 function findStrokeAtScreen(x,y,group){const rect=viewport.getBoundingClientRect(),local={x:x-rect.left,y:y-rect.top};let best=null,bestSq=24*24;for(const o of group.children){if(!o.userData.stroke||!o.userData.centerline)continue;const projected=o.userData.centerline.map(p=>projectErasePoint(o.localToWorld(new THREE.Vector3(...p))));const d=distanceToErasePathPx(local,projected);if(d<bestSq){bestSq=d;best=o;}}return best;}
 function selectStroke(o){if(selectedStroke&&selectedStroke!==o)highlightStroke(selectedStroke,false);selectedStroke=o;if(o)highlightStroke(o,true);if(tool==='move'){if(o){transform.attach(o);}else{transform.detach();}}}
-function beginPendingDraw(p){const point=p.point?.clone();if(!point)return;drawing=true;activeStrokeTool=p.tool;activeStrokeGroup=p.group;currentPoints=[point];smoothedBrushSpeed=0;lastBrushPointer=null;currentBrushSamples=[sampleBrushVelocity({clientX:p.x,clientY:p.y,timeStamp:p.timeStamp,pointerType:p.pointerType,pressure:p.pressure},true)];if(p.tool==='erase'){eraserScreenPoints=[];addEraserScreenPoint({clientX:p.x,clientY:p.y});updateEraserPreview();}else updateStrokePreview();}
+function beginPendingDraw(p){const point=p.point?.clone();if(!point)return;drawing=true;activeStrokeTool=p.tool;activeStrokeGroup=p.group;currentPoints=[point];stabilizedBrushPoint=point.clone();smoothedBrushSpeed=0;lastBrushPointer=null;currentBrushSamples=[sampleBrushVelocity({clientX:p.x,clientY:p.y,timeStamp:p.timeStamp,pointerType:p.pointerType,pressure:p.pressure},true)];if(p.tool==='erase'){eraserScreenPoints=[];addEraserScreenPoint({clientX:p.x,clientY:p.y});updateEraserPreview();}else updateStrokePreview();}
 function compactErasePath(path){
   if(path.length<3)return path;
   const compact=[path[0]];let last=path[0];
@@ -371,7 +371,13 @@ canvas.addEventListener('pointermove',e=>{
   if(!inputEvents.length)inputEvents.push(e);
   let changed=false;
   for(const sampleEvent of inputEvents){
-    const point=pointFromEvent(sampleEvent);if(!point)continue;
+    const rawPoint=pointFromEvent(sampleEvent);if(!rawPoint)continue;
+    // Adjustable low-pass stabilization: zero is raw input, 100% heavily
+    // filters hand jitter while retaining the full stroke path.
+    if(!stabilizedBrushPoint)stabilizedBrushPoint=rawPoint.clone();
+    const response=1-(brushStabilization*.9);
+    stabilizedBrushPoint.lerp(rawPoint,response);
+    const point=stabilizedBrushPoint.clone();
     const lastPoint=currentPoints[currentPoints.length-1];
     if(activeStrokeTool==='erase'){
       const rect=viewport.getBoundingClientRect(),last=eraserScreenPoints[eraserScreenPoints.length-1];
@@ -426,6 +432,7 @@ document.querySelector('#brushSize').oninput=e=>{brushSize=+e.target.value;docum
 document.querySelector('#eraserSize').oninput=e=>{eraserRadiusPx=+e.target.value;document.querySelector('#eraserSizeVal').textContent=eraserRadiusPx+' px';if(drawing&&activeStrokeTool==='erase')scheduleStrokePreview();};
 document.querySelector('#opacity').oninput=e=>opacity=+e.target.value/100;
 document.querySelector('#velocitySensitivity').oninput=e=>{velocitySensitivity=+e.target.value/100;document.querySelector('#velocitySensitivityVal').textContent=e.target.value+'%';};
+document.querySelector('#stabilization').oninput=e=>{brushStabilization=+e.target.value/100;document.querySelector('#stabilizationVal').textContent=e.target.value+'%';};
 document.querySelector('#taper').oninput=e=>{endTaper=+e.target.value/100;document.querySelector('#taperVal').textContent=e.target.value+'%';};
 
 
