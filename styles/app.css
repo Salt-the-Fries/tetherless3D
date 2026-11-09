@@ -162,3 +162,8 @@ button.active{animation:stamp .24s ease-out}
 
 /* Keep the toggle visible even before the toolbar controller initializes. */
 .rail .rail-more{display:flex!important;visibility:visible!important;opacity:1!important;flex:0 0 39px!important;min-height:42px!important;pointer-events:auto!important}
+
+/* Brush studio controls */
+#brushPreset{width:100%;min-height:38px;padding:7px 10px;border:2px solid var(--ink);border-radius:9px;background:#fff8e9;color:var(--ink);font:inherit;font-weight:800;box-shadow:2px 2px 0 var(--ink)}
+#brushPresetName{display:block;margin-top:3px;color:#71665a;font-size:11px;font-weight:800}
+#textureAmount{accent-color:var(--orange)}
