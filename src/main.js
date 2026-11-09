@@ -380,7 +380,39 @@ document.querySelector('#saveBtn').onclick=downloadProject;
 const projectInput=document.querySelector('#projectInput');
 document.querySelector('#loadBtn').onclick=()=>projectInput.click();
 
-projectInput.addEventListener('change',async()=>{const file=projectInput.files?.[0];if(!file)return;try{const data=JSON.parse(await file.text());if(!data||data.format!=='tetherless3d-project'||!Array.isArray(data.layers))throw new Error('This file is not a Tetherless3D project.');const loader=new THREE.ObjectLoader();let imported=[];if(data.version>=3){imported=data.layers.map((entry,index)=>{if(!entry?.scene?.object)throw new Error('Layer '+(index+1)+' is missing its scene data.');const group=loader.parse(entry.scene);if(!(group instanceof THREE.Group))throw new Error('Layer '+(index+1)+' is not a valid group.');group.name=entry.name||group.name||'Layer '+(index+1);group.visible=entry.visible!==false;return {name:group.name,group,visible:group.visible};});}else{if(!data.layers.object)throw new Error('The project scene is invalid.');const legacy=loader.parse(data.layers);if(!(legacy instanceof THREE.Group))throw new Error('The project scene is invalid.');imported=legacy.children.filter(group=>group instanceof THREE.Group).map((group,index)=>({name:group.name||'Layer '+(index+1),group,visible:group.visible!==false}));}if(!imported.length)throw new Error('This project contains no layers.');transform.detach();selectedStroke=null;root.clear();layers.length=0;for(const layer of imported){root.add(layer.group);layers.push(layer);}activeLayer=THREE.MathUtils.clamp(Number.isInteger(data.activeLayer)?data.activeLayer:0,0,layers.length-1);keyframes=Array.isArray(data.keyframes)?data.keyframes:[];if(data.camera?.position?.length===3){camera.position.fromArray(data.camera.position);if(data.camera.target?.length===3)orbit.target.fromArray(data.camera.target);camera.fov=Number.isFinite(data.camera.fov)?data.camera.fov:42;camera.updateProjectionMatrix();camera.lookAt(orbit.target);orbit.update();}undoStack=[];redoStack=[];renderLayers();document.querySelector('#frameInfo').textContent=keyframes.length+' keyframes · '+layers.length+' layers imported';document.querySelector('#frameSlider').max=Math.max(100,keyframes.length*100);document.querySelector('#frameSlider').value=0;document.querySelector('#frameNo').textContent='0';comicPop(innerWidth/2,70,'ALL '+layers.length+' LAYERS IN!');}catch(error){alert('Could not import project: '+(error?.message||error));}finally{projectInput.value='';}});
+projectInput.addEventListener('change',async()=>{const file=projectInput.files?.[0];if(!file)return;try{
+ const raw=await file.text();
+ let data;try{data=JSON.parse(raw);}catch(error){throw new Error('The file is not readable JSON ('+error.message+').');}
+ if(!data||data.format!=='tetherless3d-project')throw new Error('Project format marker is missing or unrecognized.');
+ const loader=new THREE.ObjectLoader();let imported=[];
+ const isGroup=object=>Boolean(object&&(object.isGroup===true||object.type==='Group'));
+ if(Number(data.version)>=3){
+  if(!Array.isArray(data.layers))throw new Error('Version '+data.version+' project has no layers array.');
+  for(let index=0;index<data.layers.length;index++){
+   const entry=data.layers[index];if(!entry)throw new Error('Layer '+(index+1)+' is empty.');
+   const sceneData=entry.scene||entry;
+   if(!sceneData||!sceneData.object)throw new Error('Layer '+(index+1)+' ('+(entry.name||'unnamed')+') has no Three.js scene object.');
+   let group;try{group=loader.parse(sceneData);}catch(error){throw new Error('Layer '+(index+1)+' ('+(entry.name||'unnamed')+') could not be decoded: '+(error?.message||error));}
+   if(!isGroup(group))throw new Error('Layer '+(index+1)+' decoded as '+(group?.type||'an unknown object')+', not a Group.');
+   group.name=entry.name||group.name||'Layer '+(index+1);group.visible=entry.visible!==false;
+   imported.push({name:group.name,group,visible:group.visible});
+  }
+ }else{
+  const legacyData=data.layers?.object?data.layers:data.scene;
+  if(!legacyData?.object)throw new Error('Older project format detected, but its scene object is missing.');
+  let legacy;try{legacy=loader.parse(legacyData);}catch(error){throw new Error('The older project scene could not be decoded: '+(error?.message||error));}
+  if(!isGroup(legacy))throw new Error('The older project scene did not decode into a Group.');
+  imported=legacy.children.filter(isGroup).map((group,index)=>({name:group.name||'Layer '+(index+1),group,visible:group.visible!==false}));
+ }
+ if(!imported.length)throw new Error('The project was read, but it contains no importable layers.');
+ // Only replace the current artwork after every layer has decoded successfully.
+ transform.detach();selectedStroke=null;root.clear();layers.length=0;
+ for(const layer of imported){root.add(layer.group);layers.push(layer);}
+ activeLayer=THREE.MathUtils.clamp(Number.isInteger(data.activeLayer)?data.activeLayer:0,0,layers.length-1);
+ keyframes=Array.isArray(data.keyframes)?data.keyframes:[];
+ if(data.camera?.position?.length===3){camera.position.fromArray(data.camera.position);if(data.camera.target?.length===3)orbit.target.fromArray(data.camera.target);camera.fov=Number.isFinite(data.camera.fov)?data.camera.fov:42;camera.updateProjectionMatrix();camera.lookAt(orbit.target);orbit.update();}
+ undoStack=[];redoStack=[];renderLayers();document.querySelector('#frameInfo').textContent=keyframes.length+' keyframes · '+layers.length+' layers imported';document.querySelector('#frameSlider').max=Math.max(100,keyframes.length*100);document.querySelector('#frameSlider').value=0;document.querySelector('#frameNo').textContent='0';comicPop(innerWidth/2,70,'ALL '+layers.length+' LAYERS IN!');
+ }catch(error){console.error('Tetherless3D project import failed',error);alert('Could not import project\\n\\n'+(error?.message||String(error))+'\\n\\nYour current artwork has been kept safe.');}finally{projectInput.value='';}});
 document.querySelector('#exportBtn').onclick=()=>{renderer.render(scene,camera);const a=document.createElement('a');a.href=renderer.domElement.toDataURL('image/png');a.download='tetherless3d-artwork.png';a.click();};
 document.querySelector('#panelBtn').onclick=()=>document.querySelector('#side').classList.toggle('open');
 document.querySelector('#keyBtn').onclick=()=>{const g=layers[activeLayer].group;keyframes.push({time:keyframes.length,layer:activeLayer,position:g.position.toArray(),rotation:g.rotation.toArray(),scale:g.scale.toArray()});document.querySelector('#frameInfo').textContent=keyframes.length+' keyframes · layer: '+layers[activeLayer].name;document.querySelector('#frameSlider').max=Math.max(100,keyframes.length*100);};
