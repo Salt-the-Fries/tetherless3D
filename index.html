@@ -143,27 +143,22 @@ button.active{animation:stamp .24s ease-out}
   .viewport:after{inset:4% 5%}
 }
 .transform-modes{position:absolute;z-index:8;left:50%;top:14px;transform:translateX(-50%);display:none;gap:4px;padding:4px;background:#fff4db;border:2px solid #282321;box-shadow:3px 4px 0 #282321}.transform-modes.open{display:flex}.transform-modes button{min-width:38px;height:34px;border:1.5px solid #282321;background:#f3e3c3;color:#282321;font-weight:900}.transform-modes button.active{background:#ff9473;box-shadow:inset 0 -3px 0 #b74c31}}
-/* LANDSCAPE QUICK ACTIONS
-   Keep the primary layer action visible; tuck Clear and Export behind the ellipsis. */
+/* LANDSCAPE TOOL RAIL COLLAPSE
+   Draw stays visible; secondary tools expand from the ellipsis. */
 @media(max-width:760px) and (orientation:landscape){
-  .bottom{position:relative;display:flex;align-items:center;justify-content:flex-start;padding-right:10px}
-  .bottom .tools{position:static;display:flex;align-items:center;gap:6px;margin:0;white-space:nowrap}
-  .bottom .tools #clearBtn,.bottom .tools #exportBtn{display:none}
-  .bottom .tools.expanded #clearBtn,.bottom .tools.expanded #exportBtn{display:inline-flex}
-  .bottom .tools .quick-actions-toggle{display:inline-flex;min-width:38px;justify-content:center;font-weight:1000;letter-spacing:2px}
-  .bottom .timeline{order:2;flex:1;min-width:0;justify-content:flex-end}
-  .bottom .timeline input{width:clamp(48px,12vw,90px)}
+  .rail{overflow:visible;align-items:center}
+  .rail .rail-more{display:flex}
+  .rail:not(.expanded) .tool:not(#drawTool):not(#railMore){display:none}
+  .rail.expanded .rail-more{background:#ff9473}
 }
-@media(min-width:761px){
-  .quick-actions-toggle{display:none}
-}
+@media(min-width:761px){.rail-more{display:none}}
 </style>
 </head>
 <body>
 <div class="app">
 <header class="top"><div><div class="brand">TETHERLESS<span>3D</span></div><div class="sub">CUT PAPER · INK · IMAGINATION</div></div><div class="top-actions"><button id="panelBtn" class="mobile-panels">☷</button><button id="saveBtn">Save</button></div></header>
 <main class="workspace"><nav class="rail">
-<button class="tool active" id="drawTool" title="Draw">✎</button><button class="tool" id="eraseTool" title="Eraser">⌫</button><button class="tool" id="moveTool" title="Move strokes">✥</button><button class="tool" id="selectTool" title="Select / transform">↗</button><button class="tool" id="undoBtn" title="Undo">↶</button><button class="tool" id="redoBtn" title="Redo">↷</button>
+<button class="tool active" id="drawTool" title="Draw">✎</button><button class="tool rail-more" id="railMore" type="button" aria-label="More tools" aria-expanded="false" onclick="this.parentElement.classList.toggle('expanded');this.setAttribute('aria-expanded',this.parentElement.classList.contains('expanded'))">•••</button><button class="tool" id="eraseTool" title="Eraser">⌫</button><button class="tool" id="moveTool" title="Move strokes">✥</button><button class="tool" id="selectTool" title="Select / transform">↗</button><button class="tool" id="undoBtn" title="Undo">↶</button><button class="tool" id="redoBtn" title="Redo">↷</button>
 </nav><section class="viewport"><canvas id="stage"></canvas><canvas id="eraserPreviewCanvas" aria-hidden="true"></canvas><div id="brushCursor"></div><div class="mode-pill" id="modeLabel">3D DRAWING SPACE</div><div class="camera-dock" aria-label="Camera controls"><button id="zoomOut" title="Zoom out">−</button><button id="zoomIn" title="Zoom in">＋</button><button id="cameraReset" title="Reset camera">⌂</button></div><div class="hint" id="hint">Draw · Choose Move, then tap a stroke and drag it · Two fingers orbit + pinch to zoom</div><div id="engineError" role="status" style="display:none;position:absolute;z-index:20;left:12px;right:12px;top:64px;padding:12px;background:#fff0e8;border:2px solid #9d3022;color:#6b2018;font-weight:800;white-space:pre-wrap">3D engine error</div></section>
 <aside class="side" id="side">
 <div><div class="section-head">Layers <button id="addLayer">＋</button></div><div id="layers"></div></div>
@@ -176,7 +171,7 @@ button.active{animation:stamp .24s ease-out}
 <div class="swatches" id="swatches"><button class="swatch" data-color="#d9f78a" style="background:#d9f78a"></button><button class="swatch" data-color="#ff9473" style="background:#ff9473"></button><button class="swatch" data-color="#8bd9ff" style="background:#8bd9ff"></button><button class="swatch" data-color="#f1eee4" style="background:#f1eee4"></button><button class="swatch" data-color="#c49aff" style="background:#c49aff"></button></div></div>
 <div><div class="section-head">Animation <small>keyframes</small></div><button id="keyBtn" style="width:100%">＋ Add keyframe</button><button id="playBtn" style="width:100%;margin-top:7px">▶ Play preview</button><div class="sub" id="frameInfo" style="margin-top:7px">0 keyframes · 12 FPS</div></div>
 </aside></main>
-<footer class="bottom"><div class="tools"><button id="newBtn">＋ Layer</button><button id="clearBtn">Clear</button><button id="exportBtn">Export PNG</button><button id="quickActionsToggle" class="quick-actions-toggle" type="button" aria-label="More actions" aria-expanded="false" onclick="this.parentElement.classList.toggle('expanded');this.setAttribute('aria-expanded',this.parentElement.classList.contains('expanded'))">•••</button></div><div class="timeline"><span class="status">FRAME</span><input id="frameSlider" type="range" min="0" max="100" value="0"><span id="frameNo" class="status">0</span></div></footer>
+<footer class="bottom"><div class="tools"><button id="newBtn">＋ Layer</button><button id="clearBtn">Clear</button><button id="exportBtn">Export PNG</button></div><div class="timeline"><span class="status">FRAME</span><input id="frameSlider" type="range" min="0" max="100" value="0"><span id="frameNo" class="status">0</span></div></footer>
 </div>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <script>
