@@ -79,7 +79,7 @@ function sampleBrushVelocity(e,reset=false){
 function makeSquareStroke(points,style={}){
   if(!points.length)return null;
   const strokeSize=style.size??brushSize,strokeColor=style.color??color,strokeOpacity=style.opacity??opacity;
-  const preset=style.preset??brushPreset,texture=THREE.MathUtils.clamp(style.texture??textureAmount,0,1),taperAmount=style.taper??endTaper;
+  const preset=style.preset??(style.size!==undefined?'ink':brushPreset),texture=THREE.MathUtils.clamp(style.texture??textureAmount,0,1),taperAmount=style.taper??endTaper;
   const radius=Math.max(.012,strokeSize*.008);
   const config={ink:{sides:4,roundness:0,noise:0,opacity:1,width:1,height:1},round:{sides:14,roundness:1,noise:0,opacity:1,width:1,height:1},ribbon:{sides:4,roundness:0,noise:0,opacity:1,width:1.35,height:.28},chalk:{sides:12,roundness:1,noise:.12,opacity:.92,width:1.12,height:1},dry:{sides:10,roundness:1,noise:.25,opacity:.82,width:.9,height:1}}[preset]||{sides:4,roundness:0,noise:0,opacity:1,width:1,height:1};
   const finalOpacity=strokeOpacity*config.opacity,savedStyle={color:strokeColor,opacity:strokeOpacity,size:strokeSize,preset,texture,taper:taperAmount};
@@ -181,7 +181,7 @@ function computeEraserResult(path,group){
     removed.push(object);
     for(const segment of keep){
       if(segment.length<2&&samples.length>1)continue;
-      const replacement=makeSquareStroke(segment,object.userData.style||{});
+      const replacement=makeSquareStroke(segment,{...(object.userData.style||{}),samples:object.userData.brushSamples||[]});
       if(replacement){replacement.renderOrder=object.renderOrder;added.push(replacement);}
     }
   }
