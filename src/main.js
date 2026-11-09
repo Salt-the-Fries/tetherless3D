@@ -373,8 +373,10 @@ canvas.addEventListener('pointermove',e=>{
   for(const sampleEvent of inputEvents){
     const point=pointFromEvent(sampleEvent);if(!point)continue;
     const lastPoint=currentPoints[currentPoints.length-1];
-    const minSpacing=activeStrokeTool==='erase'?.018:Math.max(.008,brushSize*.0015);
-    if(lastPoint.distanceTo(point)<=minSpacing)continue;
+    if(activeStrokeTool==='erase'){
+      const rect=viewport.getBoundingClientRect(),last=eraserScreenPoints[eraserScreenPoints.length-1];
+      if(last&&Math.hypot(sampleEvent.clientX-rect.left-last.x,sampleEvent.clientY-rect.top-last.y)<1.25)continue;
+    }else if(lastPoint.distanceTo(point)<=Math.max(.008,brushSize*.0015))continue;
     currentPoints.push(point);
     if(activeStrokeTool==='draw')currentBrushSamples.push(sampleBrushVelocity(sampleEvent));
     if(activeStrokeTool==='erase')addEraserScreenPoint(sampleEvent);
