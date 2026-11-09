@@ -45,6 +45,15 @@
 
 <script>
 (function(){
+ (function(){
+ const actions=document.querySelector('.top-actions'),toggle=document.getElementById('topMenuBtn'),menu=document.getElementById('topMenuItems');
+ if(!actions||!toggle||!menu)return;
+ function setOpen(open){actions.classList.toggle('menu-open',open);toggle.setAttribute('aria-expanded',String(open));toggle.setAttribute('aria-label',open?'Hide toolbar actions':'Show toolbar actions');toggle.title=open?'Hide toolbar actions':'Show toolbar actions';}
+ toggle.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();setOpen(!actions.classList.contains('menu-open'));});
+ document.addEventListener('click',event=>{if(!actions.contains(event.target))setOpen(false);});
+ document.addEventListener('keydown',event=>{if(event.key==='Escape')setOpen(false);});
+ menu.addEventListener('click',event=>{if(event.target.closest('button'))setOpen(false);});
+})();
  const rail=document.querySelector('.rail');
  const toggle=document.getElementById('railMore');
  const ids=['eraseTool','moveTool','selectTool','undoBtn','redoBtn'];
