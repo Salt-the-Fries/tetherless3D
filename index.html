@@ -315,7 +315,7 @@ let selectedStroke=null,transformBefore=null;
 function highlightStroke(o,on){if(!o?.material?.emissive)return;if(on){if(o.userData.selectionEmissive===undefined)o.userData.selectionEmissive=o.material.emissive.getHex();o.material.emissive.setHex(0xff684d);}else if(o.userData.selectionEmissive!==undefined){o.material.emissive.setHex(o.userData.selectionEmissive);delete o.userData.selectionEmissive;}}
 function findStrokeAtScreen(x,y,group){const rect=viewport.getBoundingClientRect(),local={x:x-rect.left,y:y-rect.top};let best=null,bestSq=24*24;for(const o of group.children){if(!o.userData.stroke||!o.userData.centerline)continue;const projected=o.userData.centerline.map(p=>projectErasePoint(o.localToWorld(new THREE.Vector3(...p))));const d=distanceToErasePathPx(local,projected);if(d<bestSq){bestSq=d;best=o;}}return best;}
 function selectStroke(o){if(selectedStroke&&selectedStroke!==o)highlightStroke(selectedStroke,false);selectedStroke=o;if(o)highlightStroke(o,true);if(tool==='move'){if(o){transform.attach(o);}else{transform.detach();}}}
-function beginPendingDraw(p){prepareStrokePlane();const point=pointFromEvent({clientX:p.x,clientY:p.y});if(!point)return;drawing=true;activeStrokeTool=p.tool;activeStrokeGroup=p.group;currentPoints=[point];smoothedBrushSpeed=0;lastBrushPointer=null;currentBrushSamples=[sampleBrushVelocity({clientX:p.x,clientY:p.y,timeStamp:p.timeStamp},true)];if(p.tool==='erase'){eraserScreenPoints=[];addEraserScreenPoint({clientX:p.x,clientY:p.y});updateEraserPreview();}else updateStrokePreview();}
+function beginPendingDraw(p){const point=p.point?.clone();if(!point)return;drawing=true;activeStrokeTool=p.tool;activeStrokeGroup=p.group;currentPoints=[point];smoothedBrushSpeed=0;lastBrushPointer=null;currentBrushSamples=[sampleBrushVelocity({clientX:p.x,clientY:p.y,timeStamp:p.timeStamp},true)];if(p.tool==='erase'){eraserScreenPoints=[];addEraserScreenPoint({clientX:p.x,clientY:p.y});updateEraserPreview();}else updateStrokePreview();}
 function compactErasePath(path){
   if(path.length<3)return path;
   const compact=[path[0]];let last=path[0];
@@ -460,14 +460,15 @@ canvas.addEventListener('pointerdown',e=>{
   }else if(e.button===2||e.button===1){mouseCamera={id:e.pointerId,x:e.clientX,y:e.clientY,pan:e.button===1||e.shiftKey};try{canvas.setPointerCapture(e.pointerId);}catch{}return;}
   if(transform.dragging||gizmoDragging)return;
   if(tool==='move'){
-    prepareStrokePlane();
     const group=layers[activeLayer].group,hit=findStrokeAtScreen(e.clientX,e.clientY,group);
-    selectStroke(hit);
+    // Empty canvas taps are not deselection gestures. Tap the selected stroke
+    // again to clear it; otherwise the current selection stays attached.
+    if(hit)selectStroke(hit===selectedStroke?null:hit);
     return;
   }
   if(tool!=='draw'&&tool!=='erase')return;
-  prepareStrokePlane();if(!pointFromEvent(e))return;
-  beginPendingDraw({x:e.clientX,y:e.clientY,timeStamp:e.timeStamp,tool,group:layers[activeLayer].group});
+  prepareStrokePlane();const startPoint=pointFromEvent(e);if(!startPoint)return;
+  beginPendingDraw({x:e.clientX,y:e.clientY,timeStamp:e.timeStamp,tool,group:layers[activeLayer].group,point:startPoint});
 });
 canvas.addEventListener('pointermove',e=>{
   if(e.pointerType==='touch'&&activePointers.has(e.pointerId)){
@@ -519,9 +520,9 @@ canvas.addEventListener('pointercancel',cancelPointer);
 canvas.addEventListener('lostpointercapture',cancelPointer);
 window.addEventListener('blur',()=>{activePointers.clear();gestureState=null;mouseCamera=null;if(drawing)finishStroke(false);});
 document.addEventListener('visibilitychange',()=>{if(document.hidden){activePointers.clear();gestureState=null;mouseCamera=null;if(drawing)finishStroke(false);}});
-function setTool(t){if(drawing)finishStroke(true);clearPreview();tool=t;document.querySelectorAll('.rail .tool').forEach(b=>b.classList.remove('active'));({draw:'#drawTool',erase:'#eraseTool',move:'#moveTool',select:'#selectTool',orbit:'#orbitTool'}[t]&&document.querySelector(({draw:'#drawTool',erase:'#eraseTool',move:'#moveTool',select:'#selectTool',orbit:'#orbitTool'}[t])).classList.add('active'));if(t==='draw'||t==='erase'){transform.detach();orbit.enabled=false;}if(t==='move'){orbit.enabled=false;if(selectedStroke){transform.attach(selectedStroke);}else transform.detach();}if(t==='select'){orbit.enabled=false;const g=layers[activeLayer].group;if(g.children.length)transform.attach(g);}if(t==='orbit'){transform.detach();orbit.enabled=true;orbit.enableRotate=true;orbit.enablePan=true;orbit.enableZoom=true;}canvas.style.cursor=t==='draw'||t==='erase'?'none':t==='move'?'grab':'grab';brushCursor.style.display='none';document.querySelector('#hint').textContent=t==='move'?'Tap a stroke to select it, then use the 3D gizmo to move, rotate or scale it':t==='erase'?'Erase parts of strokes on the active layer · Two fingers orbit + pinch to zoom':t==='select'?'Select the active layer and use its 3D transform gizmo':'Draw on the view plane · Rotate the camera to change drawing direction · Two fingers orbit + pinch to zoom';}
+function setTool(t){if(drawing)finishStroke(true);clearPreview();if(tool==='move'&&t!=='move'&&selectedStroke){highlightStroke(selectedStroke,false);selectedStroke=null;transform.detach();}tool=t;document.querySelectorAll('.rail .tool').forEach(b=>b.classList.remove('active'));({draw:'#drawTool',erase:'#eraseTool',move:'#moveTool',select:'#selectTool',orbit:'#orbitTool'}[t]&&document.querySelector(({draw:'#drawTool',erase:'#eraseTool',move:'#moveTool',select:'#selectTool',orbit:'#orbitTool'}[t])).classList.add('active'));if(t==='draw'||t==='erase'){transform.detach();orbit.enabled=false;}if(t==='move'){orbit.enabled=false;if(selectedStroke){transform.attach(selectedStroke);}else transform.detach();}if(t==='select'){orbit.enabled=false;const g=layers[activeLayer].group;if(g.children.length)transform.attach(g);}if(t==='orbit'){transform.detach();orbit.enabled=true;orbit.enableRotate=true;orbit.enablePan=true;orbit.enableZoom=true;}canvas.style.cursor=t==='draw'||t==='erase'?'none':t==='move'?'grab':'grab';brushCursor.style.display='none';document.querySelector('#hint').textContent=t==='move'?'Tap a stroke to select it, then use the 3D gizmo to move, rotate or scale it':t==='erase'?'Erase parts of strokes on the active layer · Two fingers orbit + pinch to zoom':t==='select'?'Select the active layer and use its 3D transform gizmo':'Draw on the view plane · Rotate the camera to change drawing direction · Two fingers orbit + pinch to zoom';}
 
-document.querySelector('#drawTool').onclick=()=>setTool('draw');document.querySelector('#eraseTool').onclick=()=>setTool(tool==='erase'?'draw':'erase');document.querySelector('#moveTool').onclick=()=>setTool('move');document.querySelector('#selectTool').onclick=()=>setTool(tool==='select'?'draw':'select');
+document.querySelector('#drawTool').onclick=()=>setTool('draw');document.querySelector('#eraseTool').onclick=()=>setTool(tool==='erase'?'draw':'erase');document.querySelector('#moveTool').onclick=()=>setTool(tool==='move'?'draw':'move');document.querySelector('#selectTool').onclick=()=>setTool(tool==='select'?'draw':'select');
 function resetCamera(){orbit.target.set(0,0,0);camera.up.set(0,1,0);camera.position.set(9,7,12);camera.lookAt(0,0,0);camera.fov=42;camera.updateProjectionMatrix();orbit.update();}
 function cameraZoom(factor){const offset=camera.position.clone().sub(orbit.target);offset.multiplyScalar(factor);const distance=THREE.MathUtils.clamp(offset.length(),orbit.minDistance,orbit.maxDistance);offset.setLength(distance);camera.position.copy(orbit.target).add(offset);orbit.update();}document.querySelector('#zoomIn').onclick=()=>cameraZoom(.8);document.querySelector('#zoomOut').onclick=()=>cameraZoom(1.25);document.querySelector('#cameraReset').onclick=()=>{resetCamera();};
 document.querySelector('#addLayer').onclick=()=>addLayer();document.querySelector('#newBtn').onclick=()=>addLayer();
