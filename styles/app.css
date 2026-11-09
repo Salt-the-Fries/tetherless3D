@@ -146,3 +146,8 @@ button.active{animation:stamp .24s ease-out}
 .rail.collapsed .tool:not(#drawTool):not(#railMore){display:none!important}
 .rail.expanded .rail-more{background:#ff9473}
 }
+
+/* Reliable touch-landscape toolbar state, toggled by the app script. */
+.rail-more{display:none!important}
+.rail.compact-landscape .rail-more{display:flex!important;align-items:center;justify-content:center;flex:none;position:relative;z-index:20}
+.rail .tool[hidden]{display:none!important}
