@@ -167,11 +167,22 @@ function computeEraserResult(path,group){
     if(!object.userData.stroke||!object.userData.centerline)continue;
     const source=object.userData.centerline.map(p=>object.localToWorld(new THREE.Vector3(...p)));if(!source.length)continue;
     const curve=source.length>=2?new THREE.CatmullRomCurve3(source):null;
-    const count=curve?Math.min(900,Math.max(24,source.length*3)):1;
-    const samples=curve?curve.getPoints(count-1):source;
+    // Dense, evenly spaced samples prevent short leftover islands between
+    // the old coarse samples. A small screen-space tolerance includes the
+    // visible stroke edge, not only its mathematical centerline.
+    const count=curve?Math.min(2400,Math.max(96,source.length*8)):1;
+    const samples=curve?curve.getSpacedPoints(count-1):source;
     const keep=[];let run=[];
-    for(const p of samples){
-      const hit=distanceToErasePathPx(projectErasePoint(p),erasePath)<=radiusSq;
+    const effectiveRadius=eraserRadiusPx+1.5;
+    const effectiveRadiusSq=effectiveRadius*effectiveRadius;
+    const hitFlags=samples.map(p=>distanceToErasePathPx(projectErasePoint(p),erasePath)<=effectiveRadiusSq);
+    // Expand each hit by one neighbor on either side so a sub-sample sliver
+    // cannot survive as an un-erasable fragment.
+    for(let i=0;i<hitFlags.length;i++){
+      if(hitFlags[i]){if(i>0)hitFlags[i-1]=true;if(i+1<hitFlags.length)hitFlags[i+1]=true;}
+    }
+    for(let i=0;i<samples.length;i++){
+      const p=samples[i],hit=hitFlags[i];
       if(hit){if(run.length)keep.push(run);run=[];}else run.push(p);
     }
     if(run.length)keep.push(run);
@@ -313,7 +324,11 @@ canvas.addEventListener('pointermove',e=>{
   }
   if(!drawing||gizmoDragging)return;
   const point=pointFromEvent(e);if(!point)return;
-  if(currentPoints[currentPoints.length-1].distanceTo(point)>Math.max(.018,brushSize*.0025)){
+  const lastPoint=currentPoints[currentPoints.length-1];
+  const shouldAppend=activeStrokeTool==='erase'
+    ? Math.hypot(e.clientX-(eraserScreenPoints.length?eraserScreenPoints[eraserScreenPoints.length-1].x+viewport.getBoundingClientRect().left:e.clientX),e.clientY-(eraserScreenPoints.length?eraserScreenPoints[eraserScreenPoints.length-1].y+viewport.getBoundingClientRect().top:e.clientY))>=1.25
+    : lastPoint.distanceTo(point)>Math.max(.018,brushSize*.0025);
+  if(shouldAppend){
     currentPoints.push(point);if(activeStrokeTool==='draw')currentBrushSamples.push(sampleBrushVelocity(e));if(activeStrokeTool==='erase')addEraserScreenPoint(e);
     if(currentPoints.length>700){const compact=currentPoints.filter((_,i)=>i%2===0),compactSamples=currentBrushSamples.filter((_,i)=>i%2===0);if(compact[compact.length-1]!==currentPoints[currentPoints.length-1]){compact.push(currentPoints[currentPoints.length-1]);if(currentBrushSamples.length)compactSamples.push(currentBrushSamples[currentBrushSamples.length-1]);}currentPoints=compact;currentBrushSamples=compactSamples;}
     scheduleStrokePreview();
