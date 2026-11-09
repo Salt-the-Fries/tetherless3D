@@ -81,7 +81,7 @@ function makeSquareStroke(points,style={}){
   const strokeSize=style.size??brushSize,strokeColor=style.color??color,strokeOpacity=style.opacity??opacity;
   const preset=style.preset??(style.size!==undefined?'ink':brushPreset),texture=THREE.MathUtils.clamp(style.texture??textureAmount,0,1),taperAmount=style.taper??endTaper;
   const radius=Math.max(.012,strokeSize*.008);
-  const config={ink:{sides:4,roundness:0,noise:0,opacity:1,width:1,height:1},round:{sides:14,roundness:1,noise:0,opacity:1,width:1,height:1},ribbon:{sides:4,roundness:0,noise:0,opacity:1,width:1.35,height:.28},chalk:{sides:12,roundness:1,noise:.12,opacity:1,width:1.12,height:1},dry:{sides:10,roundness:1,noise:.25,opacity:1,width:.9,height:1}}[preset]||{sides:4,roundness:0,noise:0,opacity:1,width:1,height:1};
+  const config={ink:{sides:4,roundness:0,noise:0,opacity:1,width:1,height:1},round:{sides:14,roundness:1,noise:0,opacity:1,width:1,height:1},ribbon:{sides:4,roundness:0,noise:0,opacity:1,width:1.35,height:.28},chalk:{sides:20,roundness:1,noise:.34,opacity:1,width:1.12,height:1,grain:'granular'},dry:{sides:16,roundness:1,noise:.42,opacity:1,width:.88,height:.92,grain:'bristle'}}[preset]||{sides:4,roundness:0,noise:0,opacity:1,width:1,height:1};
   const finalOpacity=strokeOpacity*config.opacity,savedStyle={color:strokeColor,opacity:strokeOpacity,size:strokeSize,preset,texture,taper:taperAmount};
   if(points.length===1){
     const geometry=preset==='round'||preset==='chalk'||preset==='dry'?new THREE.SphereGeometry(radius,12,8):new THREE.BoxGeometry(radius*2,radius*2,radius*2);
@@ -94,8 +94,11 @@ function makeSquareStroke(points,style={}){
     const t=i/segments,p=curve.getPointAt(t),n=frames.normals[i],b=frames.binormals[i],sample=sampleAt(t),taper=Math.max(.035,Math.min(1,Math.min(taperAmount>0?(.08+t/taperAmount):1,taperAmount>0?(.08+(1-t)/taperAmount):1))),angle=sample.angle||0,ca=Math.cos(angle),sa=Math.sin(angle),axisA=n.clone().multiplyScalar(ca).addScaledVector(b,sa),axisB=b.clone().multiplyScalar(ca).addScaledVector(n,-sa),halfA=radius*config.width*Math.max(.12,sample.width)*taper,halfB=radius*config.height*Math.max(.12,sample.height)*taper,longNoise=config.noise*texture*noiseAt(i,5);
     for(let j=0;j<sides;j++){
       let u,v;if(sides===4){[[u,v]]=[[1,1],[-1,1],[-1,-1],[1,-1]].slice(j,j+1);}else{const a=j/sides*Math.PI*2;u=Math.cos(a);v=Math.sin(a);}
-      const edge=1+(longNoise+config.noise*texture*.22*noiseAt(i,j))*(config.roundness?1:.35),q=p.clone().addScaledVector(axisA,u*halfA*edge).addScaledVector(axisB,v*halfB*edge);positions.push(q.x,q.y,q.z);
-      if(config.noise>0){const grain=1-(noiseAt(i,j)*.5+.5)*texture*.28;colors.push(grain,grain,grain);}
+      const granular=config.grain==='granular'?(noiseAt(i,j)*.72+noiseAt(i*3,j+7)*.28):0;
+      const bristle=config.grain==='bristle'?(Math.cos(j/sides*Math.PI*10)*.72+Math.sin(j/sides*Math.PI*22)*.28):0;
+      const breakup=config.grain==='granular'?granular:config.grain==='bristle'?bristle:noiseAt(i,j)*.35;
+      const edge=1+(longNoise+config.noise*texture*(config.grain==='bristle'?.16:.32)*breakup),q=p.clone().addScaledVector(axisA,u*halfA*edge).addScaledVector(axisB,v*halfB*edge);positions.push(q.x,q.y,q.z);
+      if(config.noise>0){const shade=config.grain==='granular'?1-(Math.max(0,noiseAt(i*2,j+13))*.5+.15)*texture*.42:config.grain==='bristle'?1-(.5+.5*Math.sin(j/sides*Math.PI*10))*texture*.38:1-(noiseAt(i,j)*.5+.5)*texture*.28;colors.push(shade,shade,shade);}
     }
   }
   for(let i=0;i<segments;i++)for(let j=0;j<sides;j++){const a=i*sides+j,b=i*sides+(j+1)%sides,c=(i+1)*sides+(j+1)%sides,d=(i+1)*sides+j;indices.push(a,b,d,b,c,d);}
