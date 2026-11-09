@@ -186,3 +186,6 @@ button.active{animation:stamp .24s ease-out}
 /* Brush stabilization control */
 #stabilization{accent-color:var(--orange)}
 .control-note{display:block;color:#75695b;font-size:10px;font-weight:650;line-height:1.35;margin-top:3px}
+
+/* Material texture and tip profile controls */
+#brushTip{width:100%;min-height:36px;padding:7px 9px;border:2px solid var(--ink);border-radius:8px;background:#fff8e9;color:var(--ink);font:inherit;font-weight:800;box-shadow:2px 2px 0 var(--ink)}
