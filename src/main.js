@@ -30,7 +30,7 @@ transform.pointerHover=function(pointer){const raycaster=this.getRaycaster();ray
 const originalTransformUpdate=transform.updateMatrixWorld.bind(transform);
 transform.updateMatrixWorld=function(force){if(this.object&&this.object.parent===null){const stale=this.object;this.detach();if(selectedStroke===stale)selectedStroke=null;}return originalTransformUpdate(force);};transform.addEventListener('mouseDown',()=>{if(transform.object)transformBefore={position:transform.object.position.toArray(),quaternion:transform.object.quaternion.toArray(),scale:transform.object.scale.toArray()};});transform.addEventListener('mouseUp',()=>{if(transform.object&&transformBefore){const object=transform.object,after={position:object.position.toArray(),quaternion:object.quaternion.toArray(),scale:object.scale.toArray()};if(JSON.stringify(transformBefore)!==JSON.stringify(after))recordAction({type:'transform',object,before:transformBefore,after});transformBefore=null;}});transform.addEventListener('dragging-changed',e=>{gizmoDragging=e.value;orbit.enabled=false;if(gizmoDragging){if(drawing)finishStroke(false);activePointers.clear();gestureState=null;mouseCamera=null;}});
 const orbit=new (await import('three/addons/controls/OrbitControls.js')).OrbitControls(camera,renderer.domElement);orbit.enableDamping=true;orbit.dampingFactor=.08;orbit.enableZoom=true;orbit.enablePan=true;orbit.enableRotate=true;orbit.minDistance=2.5;orbit.maxDistance=40;orbit.zoomSpeed=.9;orbit.panSpeed=.85;orbit.rotateSpeed=.75;orbit.target.set(0,0,0);orbit.enabled=false;
-let activeLayer=0,tool='draw',color='#d9f78a',brushSize=6,eraserRadiusPx=6,opacity=1,velocitySensitivity=1,endTaper=.35,drawing=false,currentPoints=[],currentBrushSamples=[],currentLine=null,undoStack=[],redoStack=[],keyframes=[],playing=false,playStart=0;let lastBrushPointer=null,smoothedBrushSpeed=0;
+let activeLayer=0,tool='draw',color='#d9f78a',brushSize=6,eraserRadiusPx=6,opacity=1,velocitySensitivity=1,endTaper=.35,brushPreset='ink',textureAmount=.45,drawing=false,currentPoints=[],currentBrushSamples=[],currentLine=null,undoStack=[],redoStack=[],keyframes=[],playing=false,playStart=0;let lastBrushPointer=null,smoothedBrushSpeed=0;
 const layers=[];
 function addLayer(name='Layer '+(layers.length+1)){const group=new THREE.Group();group.name=name;root.add(group);layers.push({name,group,visible:true});activeLayer=layers.length-1;renderLayers();}
 addLayer('Starfish');addLayer('Details');activeLayer=0;
@@ -79,43 +79,34 @@ function sampleBrushVelocity(e,reset=false){
 function makeSquareStroke(points,style={}){
   if(!points.length)return null;
   const strokeSize=style.size??brushSize,strokeColor=style.color??color,strokeOpacity=style.opacity??opacity;
+  const preset=style.preset??brushPreset,texture=THREE.MathUtils.clamp(style.texture??textureAmount,0,1),taperAmount=style.taper??endTaper;
   const radius=Math.max(.012,strokeSize*.008);
+  const config={ink:{sides:4,roundness:0,noise:0,opacity:1,width:1,height:1},round:{sides:14,roundness:1,noise:0,opacity:1,width:1,height:1},ribbon:{sides:4,roundness:0,noise:0,opacity:1,width:1.35,height:.28},chalk:{sides:12,roundness:1,noise:.12,opacity:.92,width:1.12,height:1},dry:{sides:10,roundness:1,noise:.25,opacity:.82,width:.9,height:1}}[preset]||{sides:4,roundness:0,noise:0,opacity:1,width:1,height:1};
+  const finalOpacity=strokeOpacity*config.opacity,savedStyle={color:strokeColor,opacity:strokeOpacity,size:strokeSize,preset,texture,taper:taperAmount};
   if(points.length===1){
-    const dab=new THREE.Mesh(new THREE.BoxGeometry(radius*2,radius*2,radius*2),strokeMaterial({color:strokeColor,opacity:strokeOpacity}));
-    dab.position.copy(points[0]);dab.userData.stroke=true;dab.userData.centerline=[[0,0,0]];dab.userData.style={color:strokeColor,opacity:strokeOpacity,size:strokeSize};dab.renderOrder=++strokeRenderOrder;return dab;
+    const geometry=preset==='round'||preset==='chalk'||preset==='dry'?new THREE.SphereGeometry(radius,12,8):new THREE.BoxGeometry(radius*2,radius*2,radius*2);
+    const dab=new THREE.Mesh(geometry,strokeMaterial({color:strokeColor,opacity:finalOpacity}));dab.position.copy(points[0]);dab.userData.stroke=true;dab.userData.centerline=[[0,0,0]];dab.userData.style=savedStyle;dab.renderOrder=++strokeRenderOrder;return dab;
   }
-  const curve=new THREE.CatmullRomCurve3(points);
-  const segments=Math.max(8,points.length*3),frames=curve.computeFrenetFrames(segments,false);
-  const samples=style.samples||[],positions=[],indices=[];
-  const sampleAt=t=>{
-    if(!samples.length)return {width:1,height:1,angle:0};
-    const q=t*(samples.length-1),i=Math.min(samples.length-1,Math.floor(q)),j=Math.min(samples.length-1,i+1),f=q-i,a=samples[i],b=samples[j];
-    return {width:THREE.MathUtils.lerp(a.width??1,b.width??1,f),height:THREE.MathUtils.lerp(a.height??1,b.height??1,f),angle:THREE.MathUtils.lerp(a.angle??0,b.angle??0,f)};
-  };
+  const curve=new THREE.CatmullRomCurve3(points),segments=Math.max(12,points.length*4),frames=curve.computeFrenetFrames(segments,false),sides=config.sides,samples=style.samples||[],positions=[],indices=[],colors=[];
+  const sampleAt=t=>{if(!samples.length)return {width:1,height:1,angle:0};const q=t*(samples.length-1),i=Math.min(samples.length-1,Math.floor(q)),j=Math.min(samples.length-1,i+1),f=q-i,a=samples[i],b=samples[j];return {width:THREE.MathUtils.lerp(a.width??1,b.width??1,f),height:THREE.MathUtils.lerp(a.height??1,b.height??1,f),angle:THREE.MathUtils.lerp(a.angle??0,b.angle??0,f)};};
+  const noiseAt=(i,j)=>{const v=Math.sin((i+1)*127.1+(j+3)*311.7)*43758.5453;return (v-Math.floor(v))*2-1;};
   for(let i=0;i<=segments;i++){
-    const t=i/segments,p=curve.getPointAt(t),n=frames.normals[i],b=frames.binormals[i],sample=sampleAt(t);
-    const taper=Math.max(.035,Math.min(1,Math.min(endTaper>0?(.08+t/endTaper):1,endTaper>0?(.08+(1-t)/endTaper):1)));
-    const angle=sample.angle||0,ca=Math.cos(angle),sa=Math.sin(angle);
-    const axisA=n.clone().multiplyScalar(ca).addScaledVector(b,sa),axisB=b.clone().multiplyScalar(ca).addScaledVector(n,-sa);
-    const halfA=radius*Math.max(.12,sample.width)*taper,halfB=radius*Math.max(.12,sample.height)*taper;
-    for(const [u,v] of [[1,1],[-1,1],[-1,-1],[1,-1]]){const q=p.clone().addScaledVector(axisA,u*halfA).addScaledVector(axisB,v*halfB);positions.push(q.x,q.y,q.z);}
+    const t=i/segments,p=curve.getPointAt(t),n=frames.normals[i],b=frames.binormals[i],sample=sampleAt(t),taper=Math.max(.035,Math.min(1,Math.min(taperAmount>0?(.08+t/taperAmount):1,taperAmount>0?(.08+(1-t)/taperAmount):1))),angle=sample.angle||0,ca=Math.cos(angle),sa=Math.sin(angle),axisA=n.clone().multiplyScalar(ca).addScaledVector(b,sa),axisB=b.clone().multiplyScalar(ca).addScaledVector(n,-sa),halfA=radius*config.width*Math.max(.12,sample.width)*taper,halfB=radius*config.height*Math.max(.12,sample.height)*taper,longNoise=config.noise*texture*noiseAt(i,5);
+    for(let j=0;j<sides;j++){
+      let u,v;if(sides===4){[[u,v]]=[[1,1],[-1,1],[-1,-1],[1,-1]].slice(j,j+1);}else{const a=j/sides*Math.PI*2;u=Math.cos(a);v=Math.sin(a);}
+      const edge=1+(longNoise+config.noise*texture*.22*noiseAt(i,j))*(config.roundness?1:.35),q=p.clone().addScaledVector(axisA,u*halfA*edge).addScaledVector(axisB,v*halfB*edge);positions.push(q.x,q.y,q.z);
+      if(config.noise>0){const grain=1-(noiseAt(i,j)*.5+.5)*texture*.28;colors.push(grain,grain,grain);}
+    }
   }
-  for(let i=0;i<segments;i++)for(let j=0;j<4;j++){
-    const a=i*4+j,b=i*4+(j+1)%4,c=(i+1)*4+(j+1)%4,d=(i+1)*4+j;
-    indices.push(a,b,d,b,c,d);
-  }
-  // Close both ends so each stroke remains a genuinely solid 3D volume.
-  const startCap=positions.length/3;positions.push(...points[0].toArray());
-  const endCap=startCap+1;positions.push(...points[points.length-1].toArray());
-  for(let j=0;j<4;j++){const next=(j+1)%4;indices.push(startCap,next,j);const base=segments*4;indices.push(endCap,base+j,base+next);}
-  const geometry=new THREE.BufferGeometry();
-  geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));
-  geometry.setIndex(indices);geometry.computeVertexNormals();
-  const material=strokeMaterial({color:strokeColor,opacity:strokeOpacity});material.flatShading=true;material.side=THREE.DoubleSide;material.needsUpdate=true;
-  const mesh=new THREE.Mesh(geometry,material);mesh.userData.stroke=true;const center=new THREE.Vector3();geometry.computeBoundingBox();geometry.boundingBox.getCenter(center);geometry.translate(-center.x,-center.y,-center.z);mesh.position.copy(center);mesh.userData.centerline=points.map(p=>p.clone().sub(center).toArray());mesh.userData.style={color:strokeColor,opacity:strokeOpacity,size:strokeSize};mesh.userData.brushSamples=samples;mesh.renderOrder=++strokeRenderOrder;return mesh;
+  for(let i=0;i<segments;i++)for(let j=0;j<sides;j++){const a=i*sides+j,b=i*sides+(j+1)%sides,c=(i+1)*sides+(j+1)%sides,d=(i+1)*sides+j;indices.push(a,b,d,b,c,d);}
+  const startCap=positions.length/3;positions.push(...points[0].toArray());const endCap=startCap+1;positions.push(...points[points.length-1].toArray());if(config.noise>0)colors.push(1,1,1,1,1,1);
+  for(let j=0;j<sides;j++){const next=(j+1)%sides;indices.push(startCap,next,j);const base=segments*sides;indices.push(endCap,base+j,base+next);}
+  const geometry=new THREE.BufferGeometry();geometry.setAttribute('position',new THREE.Float32BufferAttribute(positions,3));if(colors.length)geometry.setAttribute('color',new THREE.Float32BufferAttribute(colors,3));geometry.setIndex(indices);geometry.computeVertexNormals();
+  const material=strokeMaterial({color:strokeColor,opacity:finalOpacity});material.flatShading=preset==='ink'||preset==='ribbon';material.side=THREE.DoubleSide;material.vertexColors=colors.length>0;material.needsUpdate=true;
+  const mesh=new THREE.Mesh(geometry,material);mesh.userData.stroke=true;const center=new THREE.Vector3();geometry.computeBoundingBox();geometry.boundingBox.getCenter(center);geometry.translate(-center.x,-center.y,-center.z);mesh.position.copy(center);mesh.userData.centerline=points.map(p=>p.clone().sub(center).toArray());mesh.userData.style=savedStyle;mesh.userData.brushSamples=samples;mesh.renderOrder=++strokeRenderOrder;return mesh;
 }
 function makeStroke(points){
-  const mesh=makeSquareStroke(points,{color,opacity,size:brushSize,samples:currentBrushSamples});if(mesh){const group=layers[activeLayer].group;group.add(mesh);recordAction({type:'add',group,object:mesh});}
+  const mesh=makeSquareStroke(points,{color,opacity,size:brushSize,samples:currentBrushSamples,preset:brushPreset,texture:textureAmount,taper:endTaper});if(mesh){const group=layers[activeLayer].group;group.add(mesh);recordAction({type:'add',group,object:mesh});}
 }
 function pointSegmentDistanceSq(p,a,b){const ab=b.clone().sub(a),den=ab.lengthSq();if(den<1e-10)return p.distanceToSquared(a);const t=THREE.MathUtils.clamp(p.clone().sub(a).dot(ab)/den,0,1);return p.distanceToSquared(a.add(ab.multiplyScalar(t)));}
 function projectErasePoint(point){
@@ -233,7 +224,7 @@ function updateStrokePreview(){
   const stride=Math.max(1,Math.ceil(currentPoints.length/220));
   const previewPoints=currentPoints.filter((_,i)=>i%stride===0);
   if(previewPoints[previewPoints.length-1]!==currentPoints[currentPoints.length-1])previewPoints.push(currentPoints[currentPoints.length-1]);
-  const previewSamples=currentBrushSamples.filter((_,i)=>i%stride===0);if(previewSamples[previewSamples.length-1]!==currentBrushSamples[currentBrushSamples.length-1])previewSamples.push(currentBrushSamples[currentBrushSamples.length-1]);currentLine=makeSquareStroke(previewPoints,{samples:previewSamples});if(currentLine)layers[activeLayer].group.add(currentLine);
+  const previewSamples=currentBrushSamples.filter((_,i)=>i%stride===0);if(previewSamples[previewSamples.length-1]!==currentBrushSamples[currentBrushSamples.length-1])previewSamples.push(currentBrushSamples[currentBrushSamples.length-1]);currentLine=makeSquareStroke(previewPoints,{samples:previewSamples,preset:brushPreset,texture:textureAmount,taper:endTaper});if(currentLine)layers[activeLayer].group.add(currentLine);
 }
 function scheduleStrokePreview(){if(previewFrame)return;previewFrame=requestAnimationFrame(()=>{previewFrame=0;if(!drawing)return;if(activeStrokeTool==='erase')updateEraserPreview();else updateStrokePreview();});}
 function clearPreview(){if(previewFrame){cancelAnimationFrame(previewFrame);previewFrame=0;}if(currentLine){layers[activeLayer].group.remove(currentLine);currentLine.geometry.dispose();currentLine.material.dispose();currentLine=null;}clearEraserPreview();clearEraserInk();eraserScreenPoints=[];}
@@ -363,6 +354,8 @@ document.querySelector('#drawTool').onclick=()=>setTool('draw');document.querySe
 function resetCamera(){orbit.target.set(0,0,0);camera.up.set(0,1,0);camera.position.set(9,7,12);camera.lookAt(0,0,0);camera.fov=42;camera.updateProjectionMatrix();orbit.update();}
 function cameraZoom(factor){const offset=camera.position.clone().sub(orbit.target);offset.multiplyScalar(factor);const distance=THREE.MathUtils.clamp(offset.length(),orbit.minDistance,orbit.maxDistance);offset.setLength(distance);camera.position.copy(orbit.target).add(offset);orbit.update();}document.querySelector('#zoomIn').onclick=()=>cameraZoom(.8);document.querySelector('#zoomOut').onclick=()=>cameraZoom(1.25);document.querySelector('#cameraReset').onclick=()=>{resetCamera();};
 document.querySelector('#addLayer').onclick=()=>addLayer();document.querySelector('#newBtn').onclick=()=>addLayer();
+document.querySelector('#brushPreset').onchange=e=>{brushPreset=e.target.value;document.querySelector('#brushPresetName').textContent=e.target.selectedOptions[0].textContent;};
+document.querySelector('#textureAmount').oninput=e=>{textureAmount=+e.target.value/100;document.querySelector('#textureVal').textContent=e.target.value+'%';if(drawing&&activeStrokeTool==='draw')scheduleStrokePreview();};
 document.querySelector('#brushSize').oninput=e=>{brushSize=+e.target.value;document.querySelector('#sizeVal').textContent=brushSize+' px';};
 document.querySelector('#eraserSize').oninput=e=>{eraserRadiusPx=+e.target.value;document.querySelector('#eraserSizeVal').textContent=eraserRadiusPx+' px';if(drawing&&activeStrokeTool==='erase')scheduleStrokePreview();};
 document.querySelector('#opacity').oninput=e=>opacity=+e.target.value/100;
