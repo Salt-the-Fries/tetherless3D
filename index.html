@@ -41,5 +41,38 @@
 </script>
 <script type="module" src="./src/main.js"></script>
 
-<script>(function(){const rail=document.querySelector('.rail');const toggle=document.getElementById('railMore');const ids=['eraseTool','moveTool','selectTool','undoBtn','redoBtn'];if(!rail||!toggle)return;const landscape=window.matchMedia('(orientation:landscape) and (pointer:coarse)');function setExpanded(expanded){if(!landscape.matches){rail.classList.remove('expanded','collapsed');ids.forEach(id=>{const button=document.getElementById(id);if(button)button.hidden=false;});toggle.setAttribute('aria-expanded','false');toggle.textContent='•••';return;}rail.classList.toggle('expanded',expanded);rail.classList.toggle('collapsed',!expanded);ids.forEach(id=>{const button=document.getElementById(id);if(button)button.hidden=!expanded;});toggle.setAttribute('aria-expanded',String(expanded));toggle.textContent=expanded?'×':'•••';}setExpanded(false);toggle.addEventListener('click',function(event){if(!landscape.matches)return;event.preventDefault();event.stopPropagation();setExpanded(toggle.getAttribute('aria-expanded')!=='true');});landscape.addEventListener('change',()=>setExpanded(false));})();</script>
+<script>
+(function(){
+ const rail=document.querySelector('.rail');
+ const toggle=document.getElementById('railMore');
+ const ids=['eraseTool','moveTool','selectTool','undoBtn','redoBtn'];
+ if(!rail||!toggle)return;
+ function isCompactLandscape(){
+  const touch=('ontouchstart' in window)||navigator.maxTouchPoints>0;
+  return touch && window.innerWidth>window.innerHeight;
+ }
+ function setExpanded(expanded){
+  const compact=isCompactLandscape();
+  rail.classList.toggle('compact-landscape',compact);
+  rail.classList.toggle('expanded',compact&&expanded);
+  rail.classList.toggle('collapsed',compact&&!expanded);
+  ids.forEach(id=>{
+   const button=document.getElementById(id);
+   if(button)button.hidden=compact&&!expanded;
+  });
+  toggle.hidden=!compact;
+  toggle.setAttribute('aria-expanded',String(compact&&expanded));
+  toggle.textContent=expanded?'×':'•••';
+ }
+ setExpanded(false);
+ toggle.addEventListener('click',event=>{
+  if(!isCompactLandscape())return;
+  event.preventDefault();
+  event.stopPropagation();
+  setExpanded(toggle.getAttribute('aria-expanded')!=='true');
+ });
+ window.addEventListener('resize',()=>setExpanded(false),{passive:true});
+ window.addEventListener('orientationchange',()=>setTimeout(()=>setExpanded(false),80),{passive:true});
+})();
+</script>
 </body></html>
