@@ -143,23 +143,21 @@ button.active{animation:stamp .24s ease-out}
   .viewport:after{inset:4% 5%}
 }
 .transform-modes{position:absolute;z-index:8;left:50%;top:14px;transform:translateX(-50%);display:none;gap:4px;padding:4px;background:#fff4db;border:2px solid #282321;box-shadow:3px 4px 0 #282321}.transform-modes.open{display:flex}.transform-modes button{min-width:38px;height:34px;border:1.5px solid #282321;background:#f3e3c3;color:#282321;font-weight:900}.transform-modes button.active{background:#ff9473;box-shadow:inset 0 -3px 0 #b74c31}}
-/* LANDSCAPE TOOL RAIL COLLAPSE
-   Draw stays visible; secondary tools expand from the ellipsis. */
+/* COLLAPSIBLE LANDSCAPE TOOL RAIL */
 .rail-more{display:none}
 @media(max-width:760px) and (orientation:landscape){
-  .rail{overflow:visible;align-items:center}
-  .rail .rail-more{display:flex}
-  .rail:not(.expanded) .tool:not(#drawTool):not(#railMore){display:none}
-  .rail.expanded .rail-more{background:#ff9473}
+.rail{overflow:visible}
+.rail .rail-more{display:flex;align-items:center;justify-content:center;flex:none;cursor:pointer;touch-action:manipulation;position:relative;z-index:20}
+.rail.collapsed .tool:not(#drawTool):not(#railMore){display:none!important}
+.rail.expanded .rail-more{background:#ff9473}
 }
-@media(min-width:761px){.rail-more{display:none}}
 </style>
 </head>
 <body>
 <div class="app">
 <header class="top"><div><div class="brand">TETHERLESS<span>3D</span></div><div class="sub">CUT PAPER · INK · IMAGINATION</div></div><div class="top-actions"><button id="panelBtn" class="mobile-panels">☷</button><button id="saveBtn">Save</button></div></header>
-<main class="workspace"><nav class="rail">
-<button class="tool active" id="drawTool" title="Draw">✎</button><button class="tool rail-more" id="railMore" type="button" aria-label="More tools" aria-expanded="false" onclick="this.parentElement.classList.toggle('expanded');this.setAttribute('aria-expanded',this.parentElement.classList.contains('expanded'))">•••</button><button class="tool" id="eraseTool" title="Eraser">⌫</button><button class="tool" id="moveTool" title="Move strokes">✥</button><button class="tool" id="selectTool" title="Select / transform">↗</button><button class="tool" id="undoBtn" title="Undo">↶</button><button class="tool" id="redoBtn" title="Redo">↷</button>
+<main class="workspace"><nav class="rail collapsed">
+<button class="tool active" id="drawTool" title="Draw">✎</button><button class="tool rail-more" id="railMore" type="button" aria-label="More tools" aria-expanded="false">•••</button><button class="tool" id="eraseTool" title="Eraser">⌫</button><button class="tool" id="moveTool" title="Move strokes">✥</button><button class="tool" id="selectTool" title="Select / transform">↗</button><button class="tool" id="undoBtn" title="Undo">↶</button><button class="tool" id="redoBtn" title="Redo">↷</button>
 </nav><section class="viewport"><canvas id="stage"></canvas><canvas id="eraserPreviewCanvas" aria-hidden="true"></canvas><div id="brushCursor"></div><div class="mode-pill" id="modeLabel">3D DRAWING SPACE</div><div class="camera-dock" aria-label="Camera controls"><button id="zoomOut" title="Zoom out">−</button><button id="zoomIn" title="Zoom in">＋</button><button id="cameraReset" title="Reset camera">⌂</button></div><div class="hint" id="hint">Draw · Choose Move, then tap a stroke and drag it · Two fingers orbit + pinch to zoom</div><div id="engineError" role="status" style="display:none;position:absolute;z-index:20;left:12px;right:12px;top:64px;padding:12px;background:#fff0e8;border:2px solid #9d3022;color:#6b2018;font-weight:800;white-space:pre-wrap">3D engine error</div></section>
 <aside class="side" id="side">
 <div><div class="section-head">Layers <button id="addLayer">＋</button></div><div id="layers"></div></div>
@@ -565,4 +563,5 @@ function animate(now){requestAnimationFrame(animate);orbit.update();if(playing&&
 requestAnimationFrame(animate);renderLayers();
 if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 </script>
+<script>(function(){const rail=document.querySelector('.rail');const toggle=document.getElementById('railMore');if(!rail||!toggle)return;toggle.addEventListener('click',function(event){event.preventDefault();event.stopPropagation();const expanded=rail.classList.toggle('expanded');rail.classList.toggle('collapsed',!expanded);toggle.setAttribute('aria-expanded',String(expanded));toggle.textContent=expanded?'×':'•••';});})();</script>
 </body></html>
