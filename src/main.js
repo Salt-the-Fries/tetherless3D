@@ -81,7 +81,7 @@ function makeSquareStroke(points,style={}){
   const strokeSize=style.size??brushSize,strokeColor=style.color??color,strokeOpacity=style.opacity??opacity;
   const preset=style.preset??(style.size!==undefined?'ink':brushPreset),texture=THREE.MathUtils.clamp(style.texture??textureAmount,0,1),taperAmount=style.taper??endTaper;
   const radius=Math.max(.012,strokeSize*.008);
-  const config={ink:{sides:4,roundness:0,noise:0,opacity:1,width:1,height:1},round:{sides:14,roundness:1,noise:0,opacity:1,width:1,height:1},ribbon:{sides:4,roundness:0,noise:0,opacity:1,width:1.35,height:.28},chalk:{sides:12,roundness:1,noise:.12,opacity:.92,width:1.12,height:1},dry:{sides:10,roundness:1,noise:.25,opacity:.82,width:.9,height:1}}[preset]||{sides:4,roundness:0,noise:0,opacity:1,width:1,height:1};
+  const config={ink:{sides:4,roundness:0,noise:0,opacity:1,width:1,height:1},round:{sides:14,roundness:1,noise:0,opacity:1,width:1,height:1},ribbon:{sides:4,roundness:0,noise:0,opacity:1,width:1.35,height:.28},chalk:{sides:12,roundness:1,noise:.12,opacity:1,width:1.12,height:1},dry:{sides:10,roundness:1,noise:.25,opacity:1,width:.9,height:1}}[preset]||{sides:4,roundness:0,noise:0,opacity:1,width:1,height:1};
   const finalOpacity=strokeOpacity*config.opacity,savedStyle={color:strokeColor,opacity:strokeOpacity,size:strokeSize,preset,texture,taper:taperAmount};
   if(points.length===1){
     const geometry=preset==='round'||preset==='chalk'||preset==='dry'?new THREE.SphereGeometry(radius,12,8):new THREE.BoxGeometry(radius*2,radius*2,radius*2);
