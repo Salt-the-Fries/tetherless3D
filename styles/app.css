@@ -182,3 +182,7 @@ button.active{animation:stamp .24s ease-out}
 .layer .layer-delete{min-width:27px;width:27px;height:27px;padding:0!important;margin-left:1px;border:1.5px solid #9b4437!important;background:#ffe0d6!important;color:#8d3024!important;font-size:19px;line-height:1;box-shadow:1px 1px 0 #282321!important}
 .layer .layer-delete:hover{background:#ff684d!important;color:#fff8e9!important;transform:translateY(-1px) rotate(5deg)}
 .layer .layer-delete:disabled{opacity:.22;cursor:not-allowed;transform:none;box-shadow:none!important}
+
+/* Brush stabilization control */
+#stabilization{accent-color:var(--orange)}
+.control-note{display:block;color:#75695b;font-size:10px;font-weight:650;line-height:1.35;margin-top:3px}
