@@ -167,3 +167,6 @@ button.active{animation:stamp .24s ease-out}
 #brushPreset{width:100%;min-height:38px;padding:7px 10px;border:2px solid var(--ink);border-radius:9px;background:#fff8e9;color:var(--ink);font:inherit;font-weight:800;box-shadow:2px 2px 0 var(--ink)}
 #brushPresetName{display:block;margin-top:3px;color:#71665a;font-size:11px;font-weight:800}
 #textureAmount{accent-color:var(--orange)}
+
+/* Compact expandable toolbar actions */
+.top-actions{display:flex;align-items:center;gap:7px;position:relative}.top-actions>#topMenuBtn{width:40px;height:40px;padding:0;font-size:25px;line-height:1;border:2px solid #282321;background:#ff9473;color:#282321;box-shadow:2px 2px 0 #282321}.top-menu-items{display:none;align-items:center;gap:7px}.top-actions.menu-open .top-menu-items{display:flex}.top-menu-items button{white-space:nowrap}.top-actions>#topMenuBtn:active{transform:translate(2px,2px);box-shadow:none}@media(max-width:760px){.top-actions{gap:5px}.top-actions>#topMenuBtn{width:36px;height:36px;font-size:23px}.top-menu-items{position:absolute;right:0;top:calc(100% + 9px);z-index:30;flex-direction:column;align-items:stretch;min-width:148px;padding:8px;background:#f9efd9;border:2px solid #282321;border-radius:13px;box-shadow:4px 5px 0 #28232155}.top-menu-items button{width:100%;text-align:left}.top-actions.menu-open .top-menu-items{display:flex}}
