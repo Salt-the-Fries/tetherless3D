@@ -21,40 +21,47 @@ const canvas=document.querySelector('#stage'),view=document.querySelector('#view
 const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(40,1,.1,100);camera.position.set(7,4,10);const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.target.set(0,0,0);controls.minDistance=2;controls.maxDistance=26;const group=new THREE.Group();scene.add(group);
 const ids=['diameter','opacity','spacing','surface','depth','size','rotation','opacityJitter','pressure','speed','startTaper','endTaper','texture','grain'],el=id=>document.getElementById(id),v=id=>+el(id).value;
 const rng=seed=>()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
+let activePigmentMap=null;
 function pigmentMap(amount,grain,preset){
-const c=document.createElement('canvas');c.width=128;c.height=128;
-const ctx=c.getContext('2d'),im=ctx.createImageData(128,128),r=rng(4451+({clean:1,dry:11,charcoal:23,air:37,stipple:53,rough:71}[preset]||1));
-const smooth=(x)=>x*x*(3-2*x);
-for(let y=0;y<128;y++)for(let x=0;x<128;x++){
-const i=(y*128+x)*4,u=x/128,v=y/128;
-const n=r(),fine=r(),wave=(Math.sin((y*grain*.42)+Math.sin(x*.045*grain)*2)+1)/2;
-let pattern=0,contrast=1;
-if(preset==='dry'){
- const fibers=Math.pow(Math.max(0,Math.sin((y*1.35+x*.12)*grain)),8);
- const flecks=n>.91?1:0;pattern=.58*fibers+.72*flecks+.22*(1-wave);contrast=1.35;
-}else if(preset==='charcoal'){
- const cloud=(Math.sin(x*.16*grain+Math.sin(y*.09)*2)*Math.cos(y*.19*grain+Math.sin(x*.07)*2)+1)/2;
- const speck=n>.79?1:0;pattern=.62*cloud+.55*speck+.18*fine;contrast=1.55;
-}else if(preset==='air'){
- const cloud=(Math.sin(x*.055*grain)*Math.sin(y*.06*grain)+1)/2;
- pattern=.08*cloud+.025*fine;contrast=.45;
-}else if(preset==='stipple'){
- const dots=n>.79?1:0,clusters=(Math.sin(x*.22*grain)*Math.cos(y*.2*grain)+1)/2;
- pattern=.9*dots+.25*clusters;contrast=1.65;
-}else if(preset==='rough'){
- const scratches=Math.pow(Math.max(0,Math.sin((x*.42+y*.9)*grain+Math.sin(x*.08)*2)),12);
- const chips=n>.87?1:0;pattern=.7*scratches+.75*chips+.2*(1-wave);contrast=1.45;
-}else{
- pattern=.025*fine;contrast=.4;
+const c=document.createElement('canvas');c.width=256;c.height=256;
+const ctx=c.getContext('2d'),im=ctx.createImageData(256,256),r=rng(8127+({clean:1,dry:11,charcoal:23,air:37,stipple:53,rough:71}[preset]||1));
+const clamp=n=>Math.max(0,Math.min(1,n));
+for(let y=0;y<256;y++)for(let x=0;x<256;x++){
+ const i=(y*256+x)*4,u=x/256,v=y/256,n=r(),fine=r();
+ let loss=0;
+ if(preset==='dry'){
+  const fiber=Math.pow(Math.max(0,Math.sin((y*1.8+x*.13)*grain+Math.sin(x*.035)*2)),10);
+  const split=Math.pow(Math.max(0,Math.sin((y*.52-x*.025)*grain)),18);
+  loss=Math.max(fiber*.88,split*.72)+(n>.965?.9:0);
+ }else if(preset==='charcoal'){
+  const cloud=(Math.sin(x*.095*grain+Math.sin(y*.035)*3)*Math.cos(y*.12*grain+Math.sin(x*.045)*2)+1)/2;
+  const soot=Math.pow(cloud,1.7)*.72;
+  const grainDust=n>.84?.72:0;
+  loss=Math.max(soot,grainDust)*(0.72+fine*.28);
+ }else if(preset==='air'){
+  const cloud=(Math.sin(x*.025*grain+Math.sin(y*.018)*2)*Math.cos(y*.03*grain)+1)/2;
+  loss=.08+cloud*.09+fine*.035;
+ }else if(preset==='stipple'){
+  const dot=n>.79?(.72+r()*.28):0;
+  const micro=r()>.91?.5:0;
+  loss=Math.max(dot,micro);
+ }else if(preset==='rough'){
+  const scratch=Math.pow(Math.max(0,Math.sin((x*.72+y*.19)*grain+Math.sin(y*.045)*3)),15);
+  const crack=Math.pow(Math.max(0,Math.sin((y*.43-x*.08)*grain)),22);
+  loss=Math.max(scratch*.94,crack*.82)+(n>.955?.9:0);
+ }else{
+  loss=n>.997?.18:0;
+ }
+ // Texture amount controls the strength while each preset retains its own visual language.
+ const strength=amount*(preset==='air'?.42:1.35);
+ const pigment=clamp(1-loss*strength);
+ im.data[i]=255;im.data[i+1]=Math.round(pigment*255);im.data[i+2]=255;im.data[i+3]=255;
 }
-const variation=THREE.MathUtils.clamp(pattern*contrast*amount,0,1);
-const pigment=THREE.MathUtils.clamp(1-variation,0,1);
-im.data[i]=255;im.data[i+1]=Math.round(pigment*255);im.data[i+2]=255;im.data[i+3]=255;
-}
-ctx.putImageData(im,0,0);const map=new THREE.CanvasTexture(c);map.wrapS=map.wrapT=THREE.RepeatWrapping;map.repeat.set(1,1);map.needsUpdate=true;return map;
+ctx.putImageData(im,0,0);
+const map=new THREE.CanvasTexture(c);map.wrapS=map.wrapT=THREE.RepeatWrapping;map.colorSpace=THREE.NoColorSpace;map.needsUpdate=true;return map;
 }
 function rebuild(){while(group.children.length){const m=group.children[group.children.length-1];group.remove(m);m.geometry.dispose();m.material.dispose();}
-const d=v('diameter'),step=d*v('spacing'),len=8,count=Math.max(2,Math.ceil(len/step)),r=rng(92173),surface=v('surface')/100,depth=v('depth')/100,sizeJ=v('size')/100,rot=v('rotation')*Math.PI/180,opJ=v('opacityJitter')/100,pressure=v('pressure')/100,speed=v('speed')/100,st=v('startTaper')/100,et=v('endTaper')/100,tex=v('texture')/100,grain=v('grain'),preset=el('preset').value,shape=el('shape').value,map=tex?pigmentMap(tex,grain,preset):null;
+const d=v('diameter'),step=d*v('spacing'),len=8,count=Math.max(2,Math.ceil(len/step)),r=rng(92173),surface=v('surface')/100,depth=v('depth')/100,sizeJ=v('size')/100,rot=v('rotation')*Math.PI/180,opJ=v('opacityJitter')/100,pressure=v('pressure')/100,speed=v('speed')/100,st=v('startTaper')/100,et=v('endTaper')/100,tex=v('texture')/100,grain=v('grain'),preset=el('preset').value,shape=el('shape').value,map=tex?pigmentMap(tex,grain,preset):null;activePigmentMap=map;
 for(let i=0;i<=count;i++){const t=i/count,y=-len/2+len*t,x=.48*Math.sin(t*Math.PI*2),z=.18*Math.sin(t*Math.PI*4),sx=(r()*2-1)*surface*d*1.45,dz=(r()*2-1)*depth*d*1.25,sz=1+(r()*2-1)*sizeJ,a=(r()*2-1)*rot,ps=1-pressure*.42*(.5+.5*Math.sin(t*Math.PI)),ss=1-speed*.35*(.5+.5*Math.cos(t*Math.PI*2)),tap=Math.min(st?.12+t/st:1,et?.12+(1-t)/et:1),alpha=THREE.MathUtils.clamp(v('opacity')/100*(1+(r()*2-1)*opJ),.04,1);
 let geo=shape==='capsule'?new THREE.CapsuleGeometry(.5,.45,4,10):shape==='disc'?new THREE.CylinderGeometry(.5,.5,.16,20):new THREE.SphereGeometry(.5,16,12);
 const mat=new THREE.MeshBasicMaterial({color:preset==='charcoal'?0x302d29:preset==='dry'?0x171715:0x080808,transparent:alpha<1||!!map||preset==='air',opacity:alpha,alphaMap:map,depthWrite:alpha>=.98&&!map&&preset!=='air',alphaTest:map?.08:0});
