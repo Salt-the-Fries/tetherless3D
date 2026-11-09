@@ -383,7 +383,18 @@ document.querySelector('#loadBtn').onclick=()=>projectInput.click();
 projectInput.addEventListener('change',async()=>{const file=projectInput.files?.[0];if(!file)return;try{
  const raw=await file.text();
  let data;try{data=JSON.parse(raw);}catch(error){throw new Error('The file is not readable JSON ('+error.message+').');}
- if(!data||data.format!=='tetherless3d-project')throw new Error('Project format marker is missing or unrecognized.');
+ if(!data||typeof data!=='object'||Array.isArray(data))throw new Error('The file must contain a project JSON object.');
+ // Older exports or files passed through JSON tools may lose the optional format marker.
+ // Accept only unmistakable Tetherless3D scene structures when the marker is absent.
+ const hasV3Layers=Array.isArray(data.layers)&&data.layers.length>0&&data.layers.every(entry=>{
+  const scene=entry?.scene||entry;
+  return Boolean(scene?.object&&(scene.object.type==='Group'||scene.object.type==='Scene'));
+ });
+ const hasLegacyScene=Boolean((data.layers?.object||data.scene?.object)&&
+  ((data.layers?.object||data.scene?.object).type==='Group'||(data.layers?.object||data.scene?.object).type==='Scene'));
+ if(data.format!=='tetherless3d-project'&&!hasV3Layers&&!hasLegacyScene){
+  throw new Error('This JSON does not contain a recognized Tetherless3D project structure. Its format marker is missing and no valid project layers or scene were found.');
+ }
  const loader=new THREE.ObjectLoader();let imported=[];
  const isGroup=object=>Boolean(object&&(object.isGroup===true||object.type==='Group'));
  if(Number(data.version)>=3){
