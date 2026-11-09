@@ -1,63 +1,40 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tetherless3D · Particle Brush Lab</title>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tetherless3D · Brush Engine Lab</title>
 <style>
 :root{color-scheme:dark;--bg:#171817;--panel:#222520;--line:#393d37;--ink:#f1eee4;--muted:#a4a99d;--lime:#c8f36a}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px system-ui,sans-serif}header{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}.brand{font-weight:900;letter-spacing:.12em}.brand span{color:var(--lime)}.sub{font-size:11px;color:var(--muted);letter-spacing:.08em}
-main{display:grid;grid-template-columns:minmax(0,1fr) 300px;min-height:calc(100dvh - 58px)}#view{min-height:560px}canvas{display:block;width:100%;height:100%;touch-action:none}aside{padding:16px;background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;gap:14px}label{display:grid;gap:7px;color:var(--muted);font-size:12px}input,button{font:inherit;color:var(--ink);background:#292c28;border:1px solid var(--line);border-radius:10px;padding:9px}input[type=range]{padding:0;accent-color:var(--lime)}button{cursor:pointer;font-weight:700}button:active{transform:translateY(1px) scale(.98)}.read{color:var(--lime);font-variant-numeric:tabular-nums}.note{padding:11px;border:1px solid var(--line);border-radius:10px;color:var(--muted);font-size:12px;line-height:1.5}
-@media(max-width:760px){main{grid-template-columns:1fr}#view{min-height:52vh}aside{border:0;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr}.note{grid-column:1/-1}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px system-ui,sans-serif}header{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}.brand{font-weight:900;letter-spacing:.12em}.brand span{color:var(--lime)}.sub{font-size:10px;color:var(--muted);letter-spacing:.1em}
+main{display:grid;grid-template-columns:minmax(0,1fr) 340px;min-height:calc(100dvh - 58px)}#view{min-height:560px}canvas{display:block;width:100%;height:100%;touch-action:none}aside{padding:14px;background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;gap:11px;max-height:calc(100dvh - 58px);overflow:auto}.group{padding:11px;border:1px solid var(--line);border-radius:12px;background:#1c1f1b;display:grid;gap:9px}.group h2{font-size:10px;letter-spacing:.14em;color:var(--lime);margin:0;text-transform:uppercase}.grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}label{display:grid;gap:5px;color:var(--muted);font-size:11px}output{color:var(--ink);font-weight:800}input,button,select{font:inherit;color:var(--ink);background:#292c28;border:1px solid var(--line);border-radius:9px;padding:8px;min-width:0}input[type=range]{padding:0;width:100%;accent-color:var(--lime)}button{cursor:pointer;font-weight:800;transition:transform .14s,background .14s}button:hover{background:#343a2e}button:active{transform:translateY(2px) scale(.98)}.actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.read{color:var(--lime);font-size:12px;font-weight:800}.note{color:var(--muted);font-size:11px;line-height:1.5}
+@media(max-width:760px){main{grid-template-columns:1fr}#view{height:48vh;min-height:300px}aside{max-height:none;border:0;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr;padding:10px}.group.wide{grid-column:1/-1}}
 </style></head><body>
-<header><div><div class="brand">TETHERLESS<span>3D</span> / PARTICLE BRUSH LAB</div><div class="sub">DRAW IN 3D · LOOK LIKE 2D · JITTER AS PARTICLE DISPLACEMENT</div></div><div class="sub">EXPERIMENTAL · ISOLATED FROM PRODUCTION</div></header>
+<header><div><div class="brand">TETHERLESS<span>3D</span> / BRUSH ENGINE LAB</div><div class="sub">REAL 3D DABS · FLAT PIGMENT · ARTIST-CONTROLLED CHAOS</div></div><div class="sub">EXPERIMENTAL · PRODUCTION BRUSH UNCHANGED</div></header>
 <main><section id="view"><canvas id="stage"></canvas></section><aside>
-<label>Particle spacing <output id="spacingOut">0.45×</output><input id="spacing" type="range" min=".18" max="1.8" step=".01" value=".45"></label>
-<label>Surface jitter <output id="surfaceOut">0%</output><input id="surface" type="range" min="0" max="150" step="1" value="0"></label>
-<label>Depth jitter <output id="depthOut">0%</output><input id="depth" type="range" min="0" max="100" step="1" value="0"></label>
-<label>Particle size variation <output id="sizeOut">0%</output><input id="size" type="range" min="0" max="70" step="1" value="0"></label>
-<label>Brush diameter <output id="diameterOut">0.34</output><input id="diameter" type="range" min=".12" max=".8" step=".01" value=".34"></label>
-<button id="reset">Reset camera</button><button id="smooth">Restore smooth baseline</button>
-<div class="read" id="readout">Continuous-looking overlap · surface jitter off · depth jitter off</div>
-<div class="note"><b>How to read this test</b><br>Every dab is a real rounded 3D particle. Spacing controls overlap. Surface jitter moves whole particles sideways across the drawing plane. Depth jitter moves them out of that plane. At zero jitter and tight spacing, the particles should merge visually into a smooth stroke.</div>
-<div class="note"><b>Important</b><br>This is a particle behavior prototype, not yet connected to the production brush. Orbit the camera to inspect whether the particles retain their 3D volume.</div>
+<section class="group"><h2>Brush identity</h2><label>Preset<select id="preset"><option value="clean">Clean ink</option><option value="dry">Dry brush</option><option value="charcoal">Charcoal</option><option value="air">Airbrush</option><option value="stipple">Stipple</option><option value="rough">Rough ink</option></select></label><label>Particle shape<select id="shape"><option value="sphere">Round dab</option><option value="capsule">Soft capsule</option><option value="disc">Flat disc</option></select></label><div class="grid"><label>Diameter <output id="diameterOut">0.34</output><input id="diameter" type="range" min=".12" max=".8" step=".01" value=".34"></label><label>Opacity <output id="opacityOut">100%</output><input id="opacity" type="range" min="10" max="100" value="100"></label></div></section>
+<section class="group"><h2>Particle choreography</h2><div class="grid"><label>Spacing <output id="spacingOut">0.45×</output><input id="spacing" type="range" min=".18" max="1.8" step=".01" value=".45"></label><label>Surface jitter <output id="surfaceOut">0%</output><input id="surface" type="range" min="0" max="150" value="0"></label><label>Depth jitter <output id="depthOut">0%</output><input id="depth" type="range" min="0" max="100" value="0"></label><label>Size jitter <output id="sizeOut">0%</output><input id="size" type="range" min="0" max="70" value="0"></label><label>Rotation jitter <output id="rotationOut">0°</output><input id="rotation" type="range" min="0" max="180" value="0"></label><label>Opacity jitter <output id="opacityJitterOut">0%</output><input id="opacityJitter" type="range" min="0" max="90" value="0"></label></div></section>
+<section class="group"><h2>Stroke dynamics</h2><div class="grid"><label>Pressure <output id="pressureOut">0%</output><input id="pressure" type="range" min="0" max="100" value="0"></label><label>Speed <output id="speedOut">0%</output><input id="speed" type="range" min="0" max="100" value="0"></label><label>Start taper <output id="startTaperOut">0%</output><input id="startTaper" type="range" min="0" max="100" value="0"></label><label>End taper <output id="endTaperOut">0%</output><input id="endTaper" type="range" min="0" max="100" value="0"></label></div><div class="note">Pressure and speed are simulated along the sample stroke for now.</div></section>
+<section class="group"><h2>Pigment surface</h2><div class="grid"><label>Texture <output id="textureOut">0%</output><input id="texture" type="range" min="0" max="100" value="0"></label><label>Grain scale <output id="grainOut">1.0×</output><input id="grain" type="range" min=".4" max="3" step=".1" value="1"></label></div><div class="note">Texture removes tiny pigment patches inside each particle without flattening its 3D silhouette.</div></section>
+<section class="group wide"><h2>Lab controls</h2><div class="actions"><button id="reset">Reset camera</button><button id="baseline">Clean baseline</button><button id="randomize">Shuffle settings</button><button id="save">Save preset JSON</button></div><div class="read" id="readout">Clean overlapping dabs</div><div class="note">Orbit the camera to inspect the same stroke from every angle. Fixed random seed keeps the sample stable while adjusting sliders.</div></section>
 </aside></main>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 <script type="module">
-import * as THREE from 'three';
-import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
-const canvas=document.querySelector('#stage'),view=document.querySelector('#view');
-const renderer=new THREE.WebGLRenderer({canvas,antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.setClearColor(0xd8d6cf);
-const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(40,1,.1,100);camera.position.set(7,4,10);
-const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=.075;controls.target.set(0,0,0);controls.minDistance=2;controls.maxDistance=26;
-const group=new THREE.Group();scene.add(group);const material=new THREE.MeshBasicMaterial({color:0x080808});
-const seedRandom=(seed)=>()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
-const get=id=>+document.querySelector('#'+id).value;
-function rebuild(){
- while(group.children.length){const m=group.children.pop();group.remove(m);m.geometry?.dispose();}
- const diameter=get('diameter'),spacing=get('spacing'),surface=get('surface')/100,depth=get('depth')/100,sizeVar=get('size')/100;
- const radius=diameter/2,step=diameter*spacing,length=8,count=Math.max(2,Math.ceil(length/step)),rand=seedRandom(92173);
- const up=new THREE.Vector3(0,0,1),side=new THREE.Vector3(1,0,0),axis=new THREE.Vector3(0,1,0);
- const sphereGeometry=new THREE.SphereGeometry(1,16,12);
- for(let i=0;i<=count;i++){
-   const t=i/count,along=-length/2+length*t;
-   // A gentle curve makes sideways displacement and camera orbit easier to inspect.
-   const baseX=.48*Math.sin(t*Math.PI*2),baseZ=.18*Math.sin(t*Math.PI*4);
-   const lateral=(rand()*2-1)*surface*diameter*1.45;
-   const away=(rand()*2-1)*depth*diameter*1.25;
-   const scale=1+(rand()*2-1)*sizeVar;
-   const mesh=new THREE.Mesh(sphereGeometry,material);
-   mesh.position.set(baseX+lateral,along,baseZ+away);
-   mesh.scale.setScalar(radius*scale);
-   group.add(mesh);
- }
- document.querySelector('#spacingOut').value=spacing.toFixed(2)+'×';
- document.querySelector('#surfaceOut').value=get('surface')+'%';
- document.querySelector('#depthOut').value=get('depth')+'%';
- document.querySelector('#sizeOut').value=get('size')+'%';
- document.querySelector('#diameterOut').value=diameter.toFixed(2);
- document.querySelector('#readout').textContent='Dabs: '+(count+1)+' · spacing '+spacing.toFixed(2)+'× · surface '+get('surface')+'% · depth '+get('depth')+'%';
-}
-function resize(){const w=view.clientWidth,h=view.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
-new ResizeObserver(resize).observe(view);resize();
-['spacing','surface','depth','size','diameter'].forEach(id=>document.querySelector('#'+id).addEventListener('input',rebuild));
-document.querySelector('#reset').addEventListener('click',()=>{camera.position.set(7,4,10);controls.target.set(0,0,0);controls.update();});
-document.querySelector('#smooth').addEventListener('click',()=>{document.querySelector('#spacing').value='.45';['surface','depth','size'].forEach(id=>document.querySelector('#'+id).value='0');rebuild();});
+import * as THREE from 'three';import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+const canvas=document.querySelector('#stage'),view=document.querySelector('#view'),renderer=new THREE.WebGLRenderer({canvas,antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.setClearColor(0xd8d6cf);
+const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(40,1,.1,100);camera.position.set(7,4,10);const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.target.set(0,0,0);controls.minDistance=2;controls.maxDistance=26;const group=new THREE.Group();scene.add(group);
+const ids=['diameter','opacity','spacing','surface','depth','size','rotation','opacityJitter','pressure','speed','startTaper','endTaper','texture','grain'],el=id=>document.getElementById(id),v=id=>+el(id).value;
+const rng=seed=>()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
+function pigmentMap(amount,grain){const c=document.createElement('canvas');c.width=128;c.height=128;const ctx=c.getContext('2d'),im=ctx.createImageData(128,128),r=rng(4451);for(let y=0;y<128;y++)for(let x=0;x<128;x++){const i=(y*128+x)*4,gap=r()>.96?r():0,fiber=(Math.sin(y*.7*grain+Math.sin(x*.05)*1.5)+1)/2;im.data[i]=im.data[i+1]=im.data[i+2]=255;im.data[i+3]=255*(1-amount*(gap+fiber*.12));}ctx.putImageData(im,0,0);return new THREE.CanvasTexture(c);}
+function rebuild(){while(group.children.length){const m=group.children[group.children.length-1];group.remove(m);m.geometry.dispose();m.material.dispose();}
+const d=v('diameter'),step=d*v('spacing'),len=8,count=Math.max(2,Math.ceil(len/step)),r=rng(92173),surface=v('surface')/100,depth=v('depth')/100,sizeJ=v('size')/100,rot=v('rotation')*Math.PI/180,opJ=v('opacityJitter')/100,pressure=v('pressure')/100,speed=v('speed')/100,st=v('startTaper')/100,et=v('endTaper')/100,tex=v('texture')/100,grain=v('grain'),preset=el('preset').value,shape=el('shape').value,map=tex?pigmentMap(tex,grain):null;
+for(let i=0;i<=count;i++){const t=i/count,y=-len/2+len*t,x=.48*Math.sin(t*Math.PI*2),z=.18*Math.sin(t*Math.PI*4),sx=(r()*2-1)*surface*d*1.45,dz=(r()*2-1)*depth*d*1.25,sz=1+(r()*2-1)*sizeJ,a=(r()*2-1)*rot,ps=1-pressure*.42*(.5+.5*Math.sin(t*Math.PI)),ss=1-speed*.35*(.5+.5*Math.cos(t*Math.PI*2)),tap=Math.min(st?.12+t/st:1,et?.12+(1-t)/et:1),alpha=THREE.MathUtils.clamp(v('opacity')/100*(1+(r()*2-1)*opJ),.04,1);
+let geo=shape==='capsule'?new THREE.CapsuleGeometry(.5,.45,4,10):shape==='disc'?new THREE.CylinderGeometry(.5,.5,.16,20):new THREE.SphereGeometry(.5,16,12);
+const mat=new THREE.MeshBasicMaterial({color:preset==='charcoal'?0x242321:0x080808,transparent:alpha<1||!!map,opacity:alpha*(preset==='air'?.34:1),alphaMap:map,depthWrite:alpha>=.98&&!map,alphaTest:preset==='dry'||preset==='rough'?.025:0});
+const m=new THREE.Mesh(geo,mat);m.position.set(x+sx,y,z+dz);const s=d*sz*ps*ss*Math.max(.12,tap);m.scale.set(s,s*(shape==='capsule'?1.4:1),s);m.rotation.set(0,a,a*.18);group.add(m);}
+ids.forEach(id=>{const o=el(id+'Out');if(o){const n=v(id);o.value=({diameter:n.toFixed(2),opacity:n+'%',spacing:n.toFixed(2)+'×',surface:n+'%',depth:n+'%',size:n+'%',rotation:n+'°',opacityJitter:n+'%',pressure:n+'%',speed:n+'%',startTaper:n+'%',endTaper:n+'%',texture:n+'%',grain:n.toFixed(1)+'×'})[id];}});
+el('readout').textContent='Dabs '+(count+1)+' · spacing '+v('spacing').toFixed(2)+'× · surface jitter '+v('surface')+'% · depth '+v('depth')+'% · pigment '+v('texture')+'%';}
+function resize(){const w=view.clientWidth,h=view.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}new ResizeObserver(resize).observe(view);resize();ids.forEach(id=>el(id).addEventListener('input',rebuild));['preset','shape'].forEach(id=>el(id).addEventListener('change',rebuild));
+function set(values){Object.entries(values).forEach(([k,n])=>el(k).value=n);rebuild();}
+el('reset').onclick=()=>{camera.position.set(7,4,10);controls.target.set(0,0,0);controls.update();};
+el('baseline').onclick=()=>{el('preset').value='clean';el('shape').value='sphere';set({diameter:.34,opacity:100,spacing:.45,surface:0,depth:0,size:0,rotation:0,opacityJitter:0,pressure:0,speed:0,startTaper:0,endTaper:0,texture:0,grain:1});};
+el('randomize').onclick=()=>{const n=(a,b)=>Math.round(a+Math.random()*(b-a));set({spacing:(.25+Math.random()*.9).toFixed(2),surface:n(0,95),depth:n(0,25),size:n(0,45),rotation:n(0,150),opacityJitter:n(0,45),texture:n(0,70),pressure:n(0,70),speed:n(0,60)});};
+el('save').onclick=()=>{const data={name:el('preset').value+' custom brush',shape:el('shape').value,settings:Object.fromEntries(ids.map(id=>[id,v(id)]))},blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='tetherless3d-brush-preset.json';a.click();URL.revokeObjectURL(url);};
 rebuild();function animate(){requestAnimationFrame(animate);controls.update();renderer.render(scene,camera);}animate();
 </script></body></html>
