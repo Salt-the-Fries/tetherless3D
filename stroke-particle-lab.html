@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tetherless3D · Particle Brush Lab</title>
+<style>
+:root{color-scheme:dark;--bg:#171817;--panel:#222520;--line:#393d37;--ink:#f1eee4;--muted:#a4a99d;--lime:#c8f36a}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px system-ui,sans-serif}header{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}.brand{font-weight:900;letter-spacing:.12em}.brand span{color:var(--lime)}.sub{font-size:11px;color:var(--muted);letter-spacing:.08em}
+main{display:grid;grid-template-columns:minmax(0,1fr) 300px;min-height:calc(100dvh - 58px)}#view{min-height:560px}canvas{display:block;width:100%;height:100%;touch-action:none}aside{padding:16px;background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;gap:14px}label{display:grid;gap:7px;color:var(--muted);font-size:12px}input,button{font:inherit;color:var(--ink);background:#292c28;border:1px solid var(--line);border-radius:10px;padding:9px}input[type=range]{padding:0;accent-color:var(--lime)}button{cursor:pointer;font-weight:700}button:active{transform:translateY(1px) scale(.98)}.read{color:var(--lime);font-variant-numeric:tabular-nums}.note{padding:11px;border:1px solid var(--line);border-radius:10px;color:var(--muted);font-size:12px;line-height:1.5}
+@media(max-width:760px){main{grid-template-columns:1fr}#view{min-height:52vh}aside{border:0;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr}.note{grid-column:1/-1}}
+</style></head><body>
+<header><div><div class="brand">TETHERLESS<span>3D</span> / PARTICLE BRUSH LAB</div><div class="sub">DRAW IN 3D · LOOK LIKE 2D · JITTER AS PARTICLE DISPLACEMENT</div></div><div class="sub">EXPERIMENTAL · ISOLATED FROM PRODUCTION</div></header>
+<main><section id="view"><canvas id="stage"></canvas></section><aside>
+<label>Particle spacing <output id="spacingOut">0.45×</output><input id="spacing" type="range" min=".18" max="1.8" step=".01" value=".45"></label>
+<label>Surface jitter <output id="surfaceOut">0%</output><input id="surface" type="range" min="0" max="150" step="1" value="0"></label>
+<label>Depth jitter <output id="depthOut">0%</output><input id="depth" type="range" min="0" max="100" step="1" value="0"></label>
+<label>Particle size variation <output id="sizeOut">0%</output><input id="size" type="range" min="0" max="70" step="1" value="0"></label>
+<label>Brush diameter <output id="diameterOut">0.34</output><input id="diameter" type="range" min=".12" max=".8" step=".01" value=".34"></label>
+<button id="reset">Reset camera</button><button id="smooth">Restore smooth baseline</button>
+<div class="read" id="readout">Continuous-looking overlap · surface jitter off · depth jitter off</div>
+<div class="note"><b>How to read this test</b><br>Every dab is a real rounded 3D particle. Spacing controls overlap. Surface jitter moves whole particles sideways across the drawing plane. Depth jitter moves them out of that plane. At zero jitter and tight spacing, the particles should merge visually into a smooth stroke.</div>
+<div class="note"><b>Important</b><br>This is a particle behavior prototype, not yet connected to the production brush. Orbit the camera to inspect whether the particles retain their 3D volume.</div>
+</aside></main>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+const canvas=document.querySelector('#stage'),view=document.querySelector('#view');
+const renderer=new THREE.WebGLRenderer({canvas,antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.setClearColor(0xd8d6cf);
+const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(40,1,.1,100);camera.position.set(7,4,10);
+const controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;controls.dampingFactor=.075;controls.target.set(0,0,0);controls.minDistance=2;controls.maxDistance=26;
+const group=new THREE.Group();scene.add(group);const material=new THREE.MeshBasicMaterial({color:0x080808});
+const seedRandom=(seed)=>()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
+const get=id=>+document.querySelector('#'+id).value;
+function rebuild(){
+ while(group.children.length){const m=group.children.pop();group.remove(m);m.geometry?.dispose();}
+ const diameter=get('diameter'),spacing=get('spacing'),surface=get('surface')/100,depth=get('depth')/100,sizeVar=get('size')/100;
+ const radius=diameter/2,step=diameter*spacing,length=8,count=Math.max(2,Math.ceil(length/step)),rand=seedRandom(92173);
+ const up=new THREE.Vector3(0,0,1),side=new THREE.Vector3(1,0,0),axis=new THREE.Vector3(0,1,0);
+ const sphereGeometry=new THREE.SphereGeometry(1,16,12);
+ for(let i=0;i<=count;i++){
+   const t=i/count,along=-length/2+length*t;
+   // A gentle curve makes sideways displacement and camera orbit easier to inspect.
+   const baseX=.48*Math.sin(t*Math.PI*2),baseZ=.18*Math.sin(t*Math.PI*4);
+   const lateral=(rand()*2-1)*surface*diameter*1.45;
+   const away=(rand()*2-1)*depth*diameter*1.25;
+   const scale=1+(rand()*2-1)*sizeVar;
+   const mesh=new THREE.Mesh(sphereGeometry,material);
+   mesh.position.set(baseX+lateral,along,baseZ+away);
+   mesh.scale.setScalar(radius*scale);
+   group.add(mesh);
+ }
+ document.querySelector('#spacingOut').value=spacing.toFixed(2)+'×';
+ document.querySelector('#surfaceOut').value=get('surface')+'%';
+ document.querySelector('#depthOut').value=get('depth')+'%';
+ document.querySelector('#sizeOut').value=get('size')+'%';
+ document.querySelector('#diameterOut').value=diameter.toFixed(2);
+ document.querySelector('#readout').textContent='Dabs: '+(count+1)+' · spacing '+spacing.toFixed(2)+'× · surface '+get('surface')+'% · depth '+get('depth')+'%';
+}
+function resize(){const w=view.clientWidth,h=view.clientHeight;renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();}
+new ResizeObserver(resize).observe(view);resize();
+['spacing','surface','depth','size','diameter'].forEach(id=>document.querySelector('#'+id).addEventListener('input',rebuild));
+document.querySelector('#reset').addEventListener('click',()=>{camera.position.set(7,4,10);controls.target.set(0,0,0);controls.update();});
+document.querySelector('#smooth').addEventListener('click',()=>{document.querySelector('#spacing').value='.45';['surface','depth','size'].forEach(id=>document.querySelector('#'+id).value='0');rebuild();});
+rebuild();function animate(){requestAnimationFrame(animate);controls.update();renderer.render(scene,camera);}animate();
+</script></body></html>
