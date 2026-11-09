@@ -7,7 +7,7 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 300px;min-height:calc(100d
 label{display:grid;gap:6px;color:var(--muted);font-size:12px}select,button,input{font:inherit;color:var(--ink);background:#292c28;border:1px solid var(--line);border-radius:9px;padding:9px}input[type=range]{padding:0;accent-color:var(--lime)}button{cursor:pointer;font-weight:700}button:active{transform:scale(.98) translateY(1px)}.note{border:1px solid var(--line);border-radius:10px;padding:10px;color:var(--muted);font-size:12px;line-height:1.5}#readout{color:var(--lime);font-variant-numeric:tabular-nums}
 @media(max-width:760px){main{grid-template-columns:1fr}#view{min-height:54vh}aside{border:0;border-top:1px solid var(--line);display:grid;grid-template-columns:1fr 1fr}.note{grid-column:1/-1}}
 </style></head><body>
-<header><div><div class="brand">TETHERLESS<span>3D</span> / ILLUSTRATION RENDERER LAB</div><div class="sub">SAME 3D STROKE · FIVE SHADING LANGUAGES</div></div><div class="sub">EXPERIMENTAL · PRODUCTION ENGINE UNTOUCHED</div></header>
+<header><div><div class="brand">TETHERLESS<span>3D</span> / ILLUSTRATION RENDERER LAB</div><div class="sub">SAME 3D STROKE · FIVE SHADING LANGUAGES · VISIBLE DOT PASS</div></div><div class="sub">EXPERIMENTAL · PRODUCTION ENGINE UNTOUCHED</div></header>
 <main><section id="view"><canvas id="stage"></canvas></section><aside>
 <label>Rendering style<select id="style"><option value="real">Realistic lighting (control)</option><option value="two">Two-tone cel shading</option><option value="three">Three-tone cel shading</option><option value="dots">Cel + halftone screentone</option><option value="hatch">Cel + manga hatching</option></select></label>
 <label>Base color<input id="color" type="color" value="#e9a6a0"></label>
@@ -16,7 +16,7 @@ label{display:grid;gap:6px;color:var(--muted);font-size:12px}select,button,input
 <label>Stroke thickness <output id="depthOut">0.18</output><input id="depth" type="range" min=".04" max=".5" step=".01" value=".18"></label>
 <label>Camera<select id="viewMode"><option value="orbit">Orbit freely</option><option value="front">Front</option><option value="side">Side / edge-on</option><option value="top">Top</option></select></label>
 <button id="reset">Reset camera</button>
-<div class="note"><b>Look for this:</b> the same geometry should feel completely different when only the rendering style changes. Tone bands should follow surface lighting. Dots and hatching should appear mainly in shadow regions, not as random decoration.</div>
+<div class="note"><b>Look for this:</b> the same geometry should feel completely different when only the rendering style changes. Tone bands follow surface lighting. In dot mode, evenly spaced dark circles should be clearly visible across shadow regions; move Screentone density to change their spacing.</div>
 <div class="note">This prototype uses a custom shader with lighting-based tone quantization and procedural screen-space patterns. It is a renderer study, not yet integrated into the main brush engine.</div><div id="readout">Renderer ready</div>
 </aside></main>
 <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
@@ -34,7 +34,7 @@ void main(){vUv=uv;vec4 world=modelMatrix*vec4(position,1.0);vWorld=world.xyz;vN
 uniform vec3 uBase;uniform int uStyle;uniform float uShadow;uniform float uDensity;uniform vec3 uLight;uniform float uAmbient;
 varying vec3 vNormal;varying vec3 vWorld;varying vec2 vUv;
 float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-float dots(vec2 p,float darkness){vec2 f=fract(p)-.5;float radius=mix(.075,.43,clamp(darkness,0.0,1.0));return 1.0-smoothstep(radius-.025,radius+.025,length(f));}
+float dots(vec2 p,float darkness){vec2 f=fract(p)-.5;float radius=mix(.10,.43,clamp(darkness,0.0,1.0));float edge=max(fwidth(length(f)),.012);return 1.0-smoothstep(radius-edge,radius+edge,length(f));}
 float hatch(vec2 p,float scale){vec2 q=p*scale;float a=abs(fract((q.x+q.y)*.72)-.5);float b=abs(fract((q.x-q.y)*.72)-.5);return 1.0-smoothstep(.035,.09,min(a,b));}
 void main(){
  vec3 N=normalize(gl_FrontFacing?vNormal:-vNormal);float lam=max(dot(N,normalize(uLight)),0.0);float light=uAmbient+(1.0-uAmbient)*lam;
@@ -42,7 +42,7 @@ void main(){
  if(uStyle==1){float band=light>.53?1.0:.42;col=uBase*mix(1.0,1.0-uShadow,1.0-band);}
  if(uStyle>=2){float band=light>.72?1.0:(light>.36?.66:.34);col=uBase*mix(1.0,1.0-uShadow,1.0-band);}
  vec2 screenPattern=gl_FragCoord.xy/max(uDensity,1.0);
- if(uStyle==3&&light<.68){float darkness=clamp((.68-light)/.68,0.0,1.0);float d=dots(screenPattern,darkness);col=mix(col,vec3(.12,.10,.13),d*.92*darkness);}
+ if(uStyle==3&&light<.78){float darkness=clamp((.78-light)/.78,0.0,1.0);float d=dots(screenPattern,darkness);float toneStrength=smoothstep(.015,.20,darkness);col=mix(col,vec3(.055,.045,.055),d*.98*toneStrength);}
  if(uStyle==4&&light<.72){float h=hatch(screenPattern,uDensity*.72);col=mix(col,vec3(.12,.10,.13),h*.58*(1.0-light));}
  if(uStyle==0){col=uBase*(.24+.92*light);}
  gl_FragColor=vec4(col,1.0);
