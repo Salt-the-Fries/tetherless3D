@@ -115,7 +115,12 @@ function sampleBrushVelocity(e,reset=false){
   lastBrushPointer={x:e.clientX,y:e.clientY,time:now};
   smoothedBrushSpeed=reset?0:THREE.MathUtils.lerp(smoothedBrushSpeed,speed,.38);
   const response=THREE.MathUtils.clamp(1.45-(smoothedBrushSpeed/1.8)*1.1,.32,1.45);
-  const width=THREE.MathUtils.lerp(1,response,velocitySensitivity);
+  let width=THREE.MathUtils.lerp(1,response,velocitySensitivity);
+  // Real stylus pressure adds expressive control; finger input remains unchanged.
+  if(e.pointerType==='pen'&&Number.isFinite(e.pressure)&&e.pressure>0){
+    const pressure=THREE.MathUtils.clamp(e.pressure,0,1);
+    width*=THREE.MathUtils.lerp(.38,1.35,pressure);
+  }
   return {width,height:1,angle:0};
 }
 
@@ -174,7 +179,7 @@ let selectedStroke=null,transformBefore=null;
 function highlightStroke(o,on){if(!o?.material?.emissive)return;if(on){if(o.userData.selectionEmissive===undefined)o.userData.selectionEmissive=o.material.emissive.getHex();o.material.emissive.setHex(0xff684d);}else if(o.userData.selectionEmissive!==undefined){o.material.emissive.setHex(o.userData.selectionEmissive);delete o.userData.selectionEmissive;}}
 function findStrokeAtScreen(x,y,group){const rect=viewport.getBoundingClientRect(),local={x:x-rect.left,y:y-rect.top};let best=null,bestSq=24*24;for(const o of group.children){if(!o.userData.stroke||!o.userData.centerline)continue;const projected=o.userData.centerline.map(p=>projectErasePoint(o.localToWorld(new THREE.Vector3(...p))));const d=distanceToErasePathPx(local,projected);if(d<bestSq){bestSq=d;best=o;}}return best;}
 function selectStroke(o){if(selectedStroke&&selectedStroke!==o)highlightStroke(selectedStroke,false);selectedStroke=o;if(o)highlightStroke(o,true);if(tool==='move'){if(o){transform.attach(o);}else{transform.detach();}}}
-function beginPendingDraw(p){const point=p.point?.clone();if(!point)return;drawing=true;activeStrokeTool=p.tool;activeStrokeGroup=p.group;currentPoints=[point];smoothedBrushSpeed=0;lastBrushPointer=null;currentBrushSamples=[sampleBrushVelocity({clientX:p.x,clientY:p.y,timeStamp:p.timeStamp},true)];if(p.tool==='erase'){eraserScreenPoints=[];addEraserScreenPoint({clientX:p.x,clientY:p.y});updateEraserPreview();}else updateStrokePreview();}
+function beginPendingDraw(p){const point=p.point?.clone();if(!point)return;drawing=true;activeStrokeTool=p.tool;activeStrokeGroup=p.group;currentPoints=[point];smoothedBrushSpeed=0;lastBrushPointer=null;currentBrushSamples=[sampleBrushVelocity({clientX:p.x,clientY:p.y,timeStamp:p.timeStamp,pointerType:p.pointerType,pressure:p.pressure},true)];if(p.tool==='erase'){eraserScreenPoints=[];addEraserScreenPoint({clientX:p.x,clientY:p.y});updateEraserPreview();}else updateStrokePreview();}
 function compactErasePath(path){
   if(path.length<3)return path;
   const compact=[path[0]];let last=path[0];
@@ -338,7 +343,7 @@ canvas.addEventListener('pointerdown',e=>{
   }
   if(tool!=='draw'&&tool!=='erase')return;
   prepareStrokePlane();const startPoint=pointFromEvent(e);if(!startPoint)return;
-  beginPendingDraw({x:e.clientX,y:e.clientY,timeStamp:e.timeStamp,tool,group:layers[activeLayer].group,point:startPoint});
+  beginPendingDraw({x:e.clientX,y:e.clientY,timeStamp:e.timeStamp,pointerType:e.pointerType,pressure:e.pressure,tool,group:layers[activeLayer].group,point:startPoint});
 });
 canvas.addEventListener('pointermove',e=>{
   if(e.pointerType==='touch'&&activePointers.has(e.pointerId)){
@@ -360,14 +365,27 @@ canvas.addEventListener('pointermove',e=>{
     mouseCamera.x=e.clientX;mouseCamera.y=e.clientY;return;
   }
   if(!drawing||gizmoDragging)return;
-  const point=pointFromEvent(e);if(!point)return;
-  const lastPoint=currentPoints[currentPoints.length-1];
-  const shouldAppend=activeStrokeTool==='erase'
-    ? Math.hypot(e.clientX-(eraserScreenPoints.length?eraserScreenPoints[eraserScreenPoints.length-1].x+viewport.getBoundingClientRect().left:e.clientX),e.clientY-(eraserScreenPoints.length?eraserScreenPoints[eraserScreenPoints.length-1].y+viewport.getBoundingClientRect().top:e.clientY))>=1.25
-    : lastPoint.distanceTo(point)>Math.max(.018,brushSize*.0025);
-  if(shouldAppend){
-    currentPoints.push(point);if(activeStrokeTool==='draw')currentBrushSamples.push(sampleBrushVelocity(e));if(activeStrokeTool==='erase')addEraserScreenPoint(e);
-    if(currentPoints.length>700){const compact=currentPoints.filter((_,i)=>i%2===0),compactSamples=currentBrushSamples.filter((_,i)=>i%2===0);if(compact[compact.length-1]!==currentPoints[currentPoints.length-1]){compact.push(currentPoints[currentPoints.length-1]);if(currentBrushSamples.length)compactSamples.push(currentBrushSamples[currentBrushSamples.length-1]);}currentPoints=compact;currentBrushSamples=compactSamples;}
+  // Browsers can bundle several high-frequency stylus/touch samples into one
+  // pointer event. Consume them all so fast strokes keep their real path.
+  const inputEvents=typeof e.getCoalescedEvents==='function'?(e.getCoalescedEvents()||[]):[];
+  if(!inputEvents.length)inputEvents.push(e);
+  let changed=false;
+  for(const sampleEvent of inputEvents){
+    const point=pointFromEvent(sampleEvent);if(!point)continue;
+    const lastPoint=currentPoints[currentPoints.length-1];
+    const minSpacing=activeStrokeTool==='erase'?.018:Math.max(.008,brushSize*.0015);
+    if(lastPoint.distanceTo(point)<=minSpacing)continue;
+    currentPoints.push(point);
+    if(activeStrokeTool==='draw')currentBrushSamples.push(sampleBrushVelocity(sampleEvent));
+    if(activeStrokeTool==='erase')addEraserScreenPoint(sampleEvent);
+    changed=true;
+  }
+  if(changed){
+    if(currentPoints.length>1400){
+      const compact=currentPoints.filter((_,i)=>i%2===0),compactSamples=currentBrushSamples.filter((_,i)=>i%2===0);
+      if(compact[compact.length-1]!==currentPoints[currentPoints.length-1]){compact.push(currentPoints[currentPoints.length-1]);if(currentBrushSamples.length)compactSamples.push(currentBrushSamples[currentBrushSamples.length-1]);}
+      currentPoints=compact;currentBrushSamples=compactSamples;
+    }
     scheduleStrokePreview();
   }
 });
