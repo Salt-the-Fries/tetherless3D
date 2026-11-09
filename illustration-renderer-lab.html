@@ -34,7 +34,7 @@ void main(){vUv=uv;vec4 world=modelMatrix*vec4(position,1.0);vWorld=world.xyz;vN
 uniform vec3 uBase;uniform int uStyle;uniform float uShadow;uniform float uDensity;uniform vec3 uLight;uniform float uAmbient;
 varying vec3 vNormal;varying vec3 vWorld;varying vec2 vUv;
 float hash(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);}
-float dots(vec2 p,float scale){vec2 q=p*scale;vec2 cell=floor(q);vec2 f=fract(q)-.5;float r=.12+.25*(1.0-clamp(dot(uBase,vec3(.333)),0.0,1.0));float radius=sqrt(r)*.42;return 1.0-smoothstep(radius-.025,radius+.025,length(f));}
+float dots(vec2 p,float darkness){vec2 f=fract(p)-.5;float radius=mix(.075,.43,clamp(darkness,0.0,1.0));return 1.0-smoothstep(radius-.025,radius+.025,length(f));}
 float hatch(vec2 p,float scale){vec2 q=p*scale;float a=abs(fract((q.x+q.y)*.72)-.5);float b=abs(fract((q.x-q.y)*.72)-.5);return 1.0-smoothstep(.035,.09,min(a,b));}
 void main(){
  vec3 N=normalize(gl_FrontFacing?vNormal:-vNormal);float lam=max(dot(N,normalize(uLight)),0.0);float light=uAmbient+(1.0-uAmbient)*lam;
@@ -42,7 +42,7 @@ void main(){
  if(uStyle==1){float band=light>.53?1.0:.42;col=uBase*mix(1.0,1.0-uShadow,1.0-band);}
  if(uStyle>=2){float band=light>.72?1.0:(light>.36?.66:.34);col=uBase*mix(1.0,1.0-uShadow,1.0-band);}
  vec2 screenPattern=gl_FragCoord.xy/max(uDensity,1.0);
- if(uStyle==3&&light<.68){float d=dots(screenPattern,uDensity);col=mix(col,vec3(.12,.10,.13),d*.62*(1.0-light));}
+ if(uStyle==3&&light<.68){float darkness=clamp((.68-light)/.68,0.0,1.0);float d=dots(screenPattern,darkness);col=mix(col,vec3(.12,.10,.13),d*.92*darkness);}
  if(uStyle==4&&light<.72){float h=hatch(screenPattern,uDensity*.72);col=mix(col,vec3(.12,.10,.13),h*.58*(1.0-light));}
  if(uStyle==0){col=uBase*(.24+.92*light);}
  gl_FragColor=vec4(col,1.0);
