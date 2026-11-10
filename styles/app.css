@@ -203,3 +203,6 @@ button.active{animation:stamp .24s ease-out}
 .control select:focus-visible{outline:2px solid var(--lime);outline-offset:2px;border-color:var(--lime)}
 .control select:active{transform:translateY(1px);box-shadow:0 1px 0 #10120f}
 .control select option{background:#22251f;color:var(--ink)}
+
+/* Per-stroke blur control */
+#blurAmount{accent-color:var(--violet)}
