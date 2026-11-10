@@ -262,7 +262,7 @@ function computeEraserResult(path,group){
     removed.push(object);
     for(const segment of keep){
       if(segment.length<2&&samples.length>1)continue;
-      const replacement=makeSquareStroke(segment,{...(object.userData.style||{}),samples:object.userData.brushSamples||[]});
+      const replacement=makeSquareStroke(segment,{...(object.userData.style||{}),blur:object.userData.style?.blur??0,samples:object.userData.brushSamples||[]});
       if(replacement){replacement.renderOrder=object.renderOrder;added.push(replacement);}
     }
   }
