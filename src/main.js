@@ -30,7 +30,7 @@ transform.pointerHover=function(pointer){const raycaster=this.getRaycaster();ray
 const originalTransformUpdate=transform.updateMatrixWorld.bind(transform);
 transform.updateMatrixWorld=function(force){if(this.object&&this.object.parent===null){const stale=this.object;this.detach();if(selectedStroke===stale)selectedStroke=null;}return originalTransformUpdate(force);};transform.addEventListener('mouseDown',()=>{if(transform.object)transformBefore={position:transform.object.position.toArray(),quaternion:transform.object.quaternion.toArray(),scale:transform.object.scale.toArray()};});transform.addEventListener('mouseUp',()=>{if(transform.object&&transformBefore){const object=transform.object,after={position:object.position.toArray(),quaternion:object.quaternion.toArray(),scale:object.scale.toArray()};if(JSON.stringify(transformBefore)!==JSON.stringify(after))recordAction({type:'transform',object,before:transformBefore,after});transformBefore=null;}});transform.addEventListener('dragging-changed',e=>{gizmoDragging=e.value;orbit.enabled=false;if(gizmoDragging){if(drawing)finishStroke(false);activePointers.clear();gestureState=null;mouseCamera=null;}});
 const orbit=new (await import('three/addons/controls/OrbitControls.js')).OrbitControls(camera,renderer.domElement);orbit.enableDamping=true;orbit.dampingFactor=.08;orbit.enableZoom=true;orbit.enablePan=true;orbit.enableRotate=true;orbit.minDistance=2.5;orbit.maxDistance=40;orbit.zoomSpeed=.9;orbit.panSpeed=.85;orbit.rotateSpeed=.75;orbit.target.set(0,0,0);orbit.enabled=false;
-let activeLayer=0,tool='draw',color='#d9f78a',brushSize=6,eraserRadiusPx=6,opacity=1,velocitySensitivity=1,brushStabilization=.35,endTaper=.35,brushPreset='ink',brushTip='preset',textureAmount=.45,drawing=false,currentPoints=[],currentBrushSamples=[],currentLine=null,undoStack=[],redoStack=[],keyframes=[],playing=false,playStart=0;let lastBrushPointer=null,smoothedBrushSpeed=0,stabilizedBrushPoint=null;
+let activeLayer=0,tool='draw',color='#d9f78a',brushSize=6,eraserRadiusPx=6,opacity=1,blurAmount=0,velocitySensitivity=1,brushStabilization=.35,endTaper=.35,brushPreset='ink',brushTip='preset',textureAmount=.45,drawing=false,currentPoints=[],currentBrushSamples=[],currentLine=null,undoStack=[],redoStack=[],keyframes=[],playing=false,playStart=0;let lastBrushPointer=null,smoothedBrushSpeed=0,stabilizedBrushPoint=null;
 const layers=[];
 function addLayer(name='Layer '+(layers.length+1)){const group=new THREE.Group();group.name=name;root.add(group);layers.push({name,group,visible:true});activeLayer=layers.length-1;renderLayers();}
 addLayer('Starfish');addLayer('Details');activeLayer=0;
@@ -162,7 +162,7 @@ function makeSquareStroke(points,style={}){
   if(tip==='round'){config.sides=24;config.height=1;}
   else if(tip==='square'){config.sides=4;config.height=1;}
   else if(tip==='flat'){config.sides=4;config.height=.24;}
-  const savedStyle={color:strokeColor,opacity:strokeOpacity,size:strokeSize,preset,texture,taper:taperAmount,tip};
+  const savedStyle={color:strokeColor,opacity:strokeOpacity,size:strokeSize,preset,texture,taper:taperAmount,tip,blur:THREE.MathUtils.clamp(style.blur??blurAmount,0,12)};
   const material=strokeMaterial({color:strokeColor,opacity:strokeOpacity});
   const map=brushMaterialTexture(preset,texture);
   if(map){material.map=map;material.transparent=true;material.depthWrite=false;material.alphaTest=.025;material.needsUpdate=true;}
@@ -187,7 +187,7 @@ function makeSquareStroke(points,style={}){
   const mesh=new THREE.Mesh(geometry,material);mesh.userData.stroke=true;const center=new THREE.Vector3();geometry.computeBoundingBox();geometry.boundingBox.getCenter(center);geometry.translate(-center.x,-center.y,-center.z);mesh.position.copy(center);mesh.userData.centerline=points.map(p=>p.clone().sub(center).toArray());mesh.userData.style=savedStyle;mesh.userData.brushSamples=samples;mesh.renderOrder=++strokeRenderOrder;return mesh;
 }
 function makeStroke(points){
-  const mesh=makeSquareStroke(points,{color,opacity,size:brushSize,samples:currentBrushSamples,preset:brushPreset,texture:textureAmount,taper:endTaper,tip:brushTip});if(mesh){const group=layers[activeLayer].group;group.add(mesh);recordAction({type:'add',group,object:mesh});}
+  const mesh=makeSquareStroke(points,{color,opacity,size:brushSize,samples:currentBrushSamples,preset:brushPreset,texture:textureAmount,taper:endTaper,tip:brushTip,blur:blurAmount});if(mesh){const group=layers[activeLayer].group;group.add(mesh);recordAction({type:'add',group,object:mesh});}
 }
 function pointSegmentDistanceSq(p,a,b){const ab=b.clone().sub(a),den=ab.lengthSq();if(den<1e-10)return p.distanceToSquared(a);const t=THREE.MathUtils.clamp(p.clone().sub(a).dot(ab)/den,0,1);return p.distanceToSquared(a.add(ab.multiplyScalar(t)));}
 function projectErasePoint(point){
@@ -305,7 +305,7 @@ function updateStrokePreview(){
   const stride=Math.max(1,Math.ceil(currentPoints.length/220));
   const previewPoints=currentPoints.filter((_,i)=>i%stride===0);
   if(previewPoints[previewPoints.length-1]!==currentPoints[currentPoints.length-1])previewPoints.push(currentPoints[currentPoints.length-1]);
-  const previewSamples=currentBrushSamples.filter((_,i)=>i%stride===0);if(previewSamples[previewSamples.length-1]!==currentBrushSamples[currentBrushSamples.length-1])previewSamples.push(currentBrushSamples[currentBrushSamples.length-1]);currentLine=makeSquareStroke(previewPoints,{samples:previewSamples,preset:brushPreset,texture:textureAmount,taper:endTaper,tip:brushTip});if(currentLine)layers[activeLayer].group.add(currentLine);
+  const previewSamples=currentBrushSamples.filter((_,i)=>i%stride===0);if(previewSamples[previewSamples.length-1]!==currentBrushSamples[currentBrushSamples.length-1])previewSamples.push(currentBrushSamples[currentBrushSamples.length-1]);currentLine=makeSquareStroke(previewPoints,{samples:previewSamples,preset:brushPreset,texture:textureAmount,taper:endTaper,tip:brushTip,blur:blurAmount});if(currentLine)layers[activeLayer].group.add(currentLine);
 }
 function scheduleStrokePreview(){if(previewFrame)return;previewFrame=requestAnimationFrame(()=>{previewFrame=0;if(!drawing)return;if(activeStrokeTool==='erase')updateEraserPreview();else updateStrokePreview();});}
 function clearPreview(){if(previewFrame){cancelAnimationFrame(previewFrame);previewFrame=0;}if(currentLine){layers[activeLayer].group.remove(currentLine);currentLine.geometry.dispose();currentLine.material.dispose();currentLine=null;}clearEraserPreview();clearEraserInk();eraserScreenPoints=[];}
@@ -462,6 +462,7 @@ document.querySelector('#textureAmount').oninput=e=>{textureAmount=+e.target.val
 document.querySelector('#brushSize').oninput=e=>{brushSize=+e.target.value;document.querySelector('#sizeVal').textContent=brushSize+' px';};
 document.querySelector('#eraserSize').oninput=e=>{eraserRadiusPx=+e.target.value;document.querySelector('#eraserSizeVal').textContent=eraserRadiusPx+' px';if(drawing&&activeStrokeTool==='erase')scheduleStrokePreview();};
 document.querySelector('#opacity').oninput=e=>opacity=+e.target.value/100;
+document.querySelector('#blurAmount').oninput=e=>{blurAmount=THREE.MathUtils.clamp(+e.target.value,0,12);document.querySelector('#blurVal').textContent=blurAmount.toFixed(1)+' px';if(drawing&&activeStrokeTool==='draw')scheduleStrokePreview();};
 document.querySelector('#velocitySensitivity').oninput=e=>{velocitySensitivity=+e.target.value/100;document.querySelector('#velocitySensitivityVal').textContent=e.target.value+'%';};
 document.querySelector('#stabilization').oninput=e=>{brushStabilization=+e.target.value/100;document.querySelector('#stabilizationVal').textContent=e.target.value+'%';};
 document.querySelector('#taper').oninput=e=>{endTaper=+e.target.value/100;document.querySelector('#taperVal').textContent=e.target.value+'%';};
